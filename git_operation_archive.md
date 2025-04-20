@@ -26,7 +26,7 @@
   - [[13] 拣选/摘取提交 (git cherry-pick)](#13-拣选摘取提交-git-cherry-pick)
   - [[14] 管理标签 (git tag)](#14-管理标签-git-tag)
   - [[15] 管理远程仓库 (git remote)](#15-管理远程仓库-git-remote)
-  - [[16] 删除本地分支 (git branch -d/-D)](#16-删除本地分支-git-branch--d--d)
+  - [[16] 删除本地分支 (git branch -d/-D)](#16-删除本地分支-git-branch--d-d)
   - [[17] 删除远程分支 (git push --delete)](#17-删除远程分支-git-push---delete)
   - [[18] 创建 Pull Request](#18-创建-pull-request)
   - [[19] 清理 Commits (git reset --hard)](#19-清理-commits-git-reset---hard)
@@ -217,7 +217,7 @@
 
 ## 高级操作与管理
 
-_(通过主菜单选项 10 进入)_
+### 通过主菜单选项 10 进入
 
 ### [10] 合并分支 (git merge)
 
