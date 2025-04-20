@@ -1,0 +1,2 @@
+构建命令：
+python -m PyInstaller --noconsole --onedir main-Gui.py
