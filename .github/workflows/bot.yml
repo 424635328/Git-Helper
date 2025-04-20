@@ -1,0 +1,254 @@
+name: Enhanced Multi-Purpose Bot
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  issues:
+    types: [opened, edited, closed]
+  issue_comment:
+    types: [created, edited]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  bot:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Multi-Function Bot Core
+        uses: actions/github-script@v6
+        with:
+          script: |
+            /**
+             * Welcomes new contributors with a personalized message on their first issue or PR.
+             *
+             * @returns {Promise<void>}
+             */
+            async function welcomeNewContributor() {
+              if (github.event.sender.type == 'User') {
+                const isFirstContribution = async () => {
+                  try{
+                    const { data: pulls } = await github.rest.pulls.list({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      state: 'all',
+                      creator: context.actor,
+                    });
+
+                    const { data: issues } = await github.rest.issues.listForRepo({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      state: 'all',
+                      creator: context.actor,
+                    });
+
+                    return pulls.length + issues.length === 0; //更准确地判断是否是第一个贡献
+                  } catch (error) {
+                    console.error("Error checking contribution history:", error);
+                    return false;  // 遇到错误，默认不是第一次贡献，防止 Action 失败
+                  }
+
+                };
+
+                try {
+                  if (await isFirstContribution()) {
+                    const message = `🎉 Welcome to the project, @${context.actor}! 🎉\n\nThank you so much for your first contribution! We really appreciate you taking the time to contribute.  We will review your pull request (or issue) as soon as possible.`;
+
+                    await github.rest.issues.createComment({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: context.issue.number,
+                      body: message,
+                    });
+                  }
+                } catch (error) {
+                  console.error("Error welcoming new contributor:", error);
+                }
+              }
+            }
+
+            /**
+             * Labels issues and PRs based on keywords found in their titles.
+             *
+             * @returns {Promise<void>}
+             */
+            async function labelIssuesAndPRs() {
+              try {
+                const title = context.payload.pull_request ? context.payload.pull_request.title : context.payload.issue.title;
+                const issueNumber = context.issue.number;
+
+                let labels = [];
+
+                if (title && title.toLowerCase().includes('bug')) {
+                  labels.push('bug');
+                }
+
+                if (title && title.toLowerCase().includes('feature')) {
+                  labels.push('feature');
+                }
+
+                if (title && title.toLowerCase().includes('documentation')) {
+                  labels.push('documentation');
+                }
+
+                if (labels.length > 0) {
+                  await github.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issueNumber,
+                    labels: labels,
+                  });
+                }
+              } catch (error) {
+                console.error("Error labeling issue/PR:", error);
+              }
+            }
+
+            /**
+             * Comments on a PR when it is closed (merged or not).
+             *
+             * @returns {Promise<void>}
+             */
+            async function commentWhenPRClosed() {
+              try {
+                if (github.event_name === 'pull_request' && context.payload.action === 'closed') {
+                  const merged = context.payload.pull_request.merged;
+                  const commentBody = merged ? "🎉 This PR has been successfully merged! 🎉" : "This PR has been closed without merging.";
+
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: context.issue.number,
+                    body: commentBody,
+                  });
+                }
+              } catch (error) {
+                console.error("Error commenting on PR closure:", error);
+              }
+            }
+
+            /**
+             * Reacts to specific comments on issues with a thumbs up emoji.
+             *
+             * @returns {Promise<void>}
+             */
+            async function reactToIssueComments() {
+              try {
+                if (github.event_name === 'issue_comment' && (context.payload.action === 'created' || context.payload.action === 'edited')) {
+                  const commentBody = context.payload.comment.body.toLowerCase();
+                  const commentId = context.payload.comment.id;
+
+                  if (commentBody.includes('good job') || commentBody.includes('nice work')) {
+                    // React with a thumbs up
+                    await github.rest.reactions.createForIssueComment({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      comment_id: commentId,
+                      content: '+1', // Thumbs up
+                    });
+                  }
+                }
+              } catch (error) {
+                console.error("Error reacting to issue comment:", error);
+              }
+            }
+
+            try {
+              if (github.event_name === 'pull_request' || github.event_name === 'issues') {
+                await welcomeNewContributor();
+                await labelIssuesAndPRs();
+
+                if (github.event_name === 'pull_request' && context.payload.action === 'closed') {
+                  await commentWhenPRClosed();
+                }
+              }
+              if (github.event_name === 'issue_comment') {
+                await reactToIssueComments();
+              }
+            } catch (error) {
+              console.error("Error during bot execution:", error);
+              throw error; // Re-throw the error to fail the action
+            }
+
+      - name: Close Inactive Issues (Scheduled)
+        if: github.event_name == 'schedule'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const github = require('@actions/github');
+            const context = github.context;
+
+            const DAYS_BEFORE_CLOSE = 30;
+
+            async function getInactiveIssues() {
+              try {
+                const { data: issues } = await github.rest.issues.listForRepo({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  state: 'open',
+                  sort: 'updated',
+                  direction: 'asc',
+                  per_page: 100,
+                });
+
+                const now = new Date();
+                const inactiveIssues = issues.filter(issue => {
+                  const updatedAt = new Date(issue.updated_at);
+                  const diff = now.getTime() - updatedAt.getTime();
+                  const days = Math.ceil(diff / (1000 * 3600 * 24));
+                  return days >= DAYS_BEFORE_CLOSE && !issue.pull_request;
+                });
+                return inactiveIssues;
+              } catch (error) {
+                console.error("Error listing issues:", error);
+                return []; // 发生错误时返回空数组，避免 Action 失败
+              }
+            }
+
+            async function closeIssue(issue) {
+              const issueNumber = issue.number;
+              try {
+                const message = `This issue has been automatically closed due to inactivity.`;
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: message,
+                });
+
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  state: 'closed',
+                  reason: 'not_planned',
+                });
+                console.log(`Closed issue #${issueNumber}`);
+              } catch (error) {
+                console.error(`Error closing issue #${issueNumber}:`, error);
+              }
+            }
+
+            async function main() {
+              const inactiveIssues = await getInactiveIssues();
+
+              if (inactiveIssues.length > 0) {
+                for (const issue of inactiveIssues) {
+                  await closeIssue(issue);
+                }
+              } else {
+                console.log('No inactive issues found.');
+              }
+            }
+
+            await main();

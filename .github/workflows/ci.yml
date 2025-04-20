@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        build_type: [Debug]
+        include:
+          - os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+          - os: macos-latest
+            cc: clang
+            cxx: clang++
+          - os: windows-latest
+            cc: null # Uses Visual Studio's default
+            cxx: null # Uses Visual Studio's default
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive # 如果你有子模块
+
+      - name: Install Dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+
+      - name: Install Dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install boost
+
+      - name: Set up MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64 # Adjust as needed (x64, x86, arm64)
+          #vs_version: 2019 #可选，指定VS版本
+
+
+      - name: Build
+        run: |
+
+      - name: Test (Optional - If you have tests)
+        if: matrix.build_type == 'Release'  # Only run tests on Release build
+        run: |
+          # cd ${{github.workspace}}/build
+          # or if you have a specific test executable
+          # ./my_test_executable
