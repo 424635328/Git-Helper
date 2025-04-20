@@ -62,31 +62,42 @@ def main_menu():
 
 if __name__ == "__main__":
     # Load configuration
+    # config_manager will try to load from script's dir and CWD
     load_config()
 
-    # Get and set fork_username and base_repo
-    default_fork_username = config.get("default_fork_username", "your_github_username")
-    fork_username = input(
-        f"请输入你的 GitHub 用户名 (你的 Fork 仓库的所有者, 默认为 '{default_fork_username}'): "
+    # Get default values directly from the loaded global config for the prompt
+    # load_config already ensures these keys exist with defaults/placeholders
+    default_fork_username_for_prompt = config.get("default_fork_username")
+    default_base_repo_for_prompt = config.get("default_base_repo")
+
+
+    # Prompt for GitHub username
+    fork_username_input = input(
+        f"请输入你的 GitHub 用户名 (你的 Fork 仓库的所有者, 默认为 '{default_fork_username_for_prompt}'): "
     )
-    if not fork_username:
-        fork_username = default_fork_username
+    if not fork_username_input:
+        # If user just presses Enter, use the default from config
+        fork_username = config.get("default_fork_username")
         print(f"使用默认 GitHub 用户名: {fork_username}")
-    config["fork_username"] = fork_username  # Update config
+    else:
+        fork_username = fork_username_input
+    config["fork_username"] = fork_username  # Update config with final value
 
-    extracted_base = extract_repo_name_from_upstream_url(config.get("default_upstream_url"))
-    default_base_repo = extracted_base if extracted_base else config.get("default_base_repo", "upstream_owner/upstream_repo")
 
-    base_repo = input(
-        f"请输入原始仓库的名称 (格式 owner/repo, 默认为 '{default_base_repo}'): "
+    # Prompt for base repository name
+    base_repo_input = input(
+        f"请输入原始仓库的名称 (格式 owner/repo, 默认为 '{default_base_repo_for_prompt}'): "
     )
-    if not base_repo:
-        base_repo = default_base_repo
+    if not base_repo_input:
+        # If user just presses Enter, use the default from config
+        base_repo = config.get("default_base_repo")
         print(f"使用默认原始仓库名称: {base_repo}")
-    config["base_repo"] = base_repo  # Update config
+    else:
+        base_repo = base_repo_input
+    config["base_repo"] = base_repo  # Update config with final value
 
-    print(f"\n已设置 GitHub 用户名为: {fork_username}")
-    print(f"已设置原始仓库为: {base_repo}")
+    print(f"\n已设置 GitHub 用户名为: {config.get('fork_username')}")
+    print(f"已设置原始仓库为: {config.get('base_repo')}")
     input("\n按任意键继续...")
 
 
