@@ -1,4 +1,4 @@
-# main.py
+# main-Gui.py
 import sys
 import os
 from PyQt6.QtWidgets import QApplication
