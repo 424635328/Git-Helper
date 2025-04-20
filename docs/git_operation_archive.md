@@ -479,4 +479,4 @@
 
 希望这份档案能帮助你更好地理解 git-helper 各项操作背后的 Git 原理！
 
-[返回 README 主页](README.md)
+[返回 README 主页](../README.md)

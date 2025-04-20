@@ -48,7 +48,8 @@ def main_menu():
     print(" [3]  查看文件差异        (git diff)")
     print(" [4]  添加修改            (git add)")
     print(" [5]  提交修改            (git commit)")
-    print(" [0]  退出                (exit) ")
+    print("\n --- 其他 ---")
+    print(" [0]  退出")
     while True:
         # Allowed choices: 0, 1-9, 10 (for advanced menu)
         choice = input(" 请选择 (0-10): ")

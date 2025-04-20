@@ -107,7 +107,7 @@
 
 想要深入了解 `git-helper` 各个菜单项对应的 Git 命令、其背后原理和更多细节？请查阅我们的详细 Git 操作档案：
 
-👉 [**Git 操作档案 (git_operation_archive.md)**](git_operation_archive.md)
+👉 [**Git 操作档案 (git_operation_archive.md)**](docs/git_operation_archive.md)
 
 这个档案为你提供了每个操作的命令解释、用途、潜在风险和实用建议，帮助你更好地理解和使用 Git。
 
