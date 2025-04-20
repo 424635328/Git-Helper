@@ -456,13 +456,15 @@ _(通过主菜单选项 10 进入)_
 
 - **用途:** 将当前分支的 HEAD 指针移动到指定的提交，并**强制**将暂存区和工作目录的状态重置到该提交。这会丢弃当前 HEAD 之后的所有提交以及工作目录和暂存区中所有未提交的修改。
 - **核心命令 (git-helper 中的选项):**
+
   ```bash
   git reset --hard HEAD~<number_of_commits>
   # 例如: git reset --hard HEAD~2 # 丢弃最近的 2 个提交
   # git reset --hard HEAD~0 # 回到最初状态 (如果仓库只有一个初始提交)
   ```
+
   `HEAD~<number_of_commits>` 表示当前 HEAD 提交向后数 `<number_of_commits>` 个提交。
-- **<span style="color:red; font-weight:bold;">💥 极其危险的命令!</span>**
+- **💥 极其危险的命令!**
   - **永久数据丢失:** `git reset --hard` 会**永久丢弃**所有未推送的、位于目标提交之后的新提交以及本地工作目录和暂存区的修改。这些修改通常无法轻易恢复！
   - **重写历史:** 这也会重写分支历史。
 - **使用场景 (非常有限，且需要谨慎):**
