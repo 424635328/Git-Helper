@@ -1,110 +1,119 @@
 # src/gui/git_worker.py
 
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PyQt6.QtCore import QObject, QThread, pyqtSignal, QByteArray, QProcess
 import subprocess
 import sys
 import os
 import io
+import traceback # Import traceback for detailed error logging
 
-# Make sure wrapper functions are imported or accessible.
-# In this structure, GitWorker doesn't directly import wrappers,
-# it receives the callable function. But it needs to know *about*
-# wrapper_create_pull_request specifically to emit the signal.
-# A better design might be the wrapper emitting the signal directly if it has access,
-# or using a different mechanism. Let's keep it simple for now by checking the callable.
-
-# Need to import the specific wrapper function here to check its identity
+# Import specific wrapper function if needed for special handling (like PR)
 # from .git_wrappers import wrapper_create_pull_request
 
 class GitWorker(QObject):
     """
     在单独线程中运行 Git 命令的 Worker。
     """
-    finished = pyqtSignal() # Operation finished signal
-    error = pyqtSignal(str) # Error message signal (per line or aggregated)
-    output = pyqtSignal(str) # Standard output signal (per line or aggregated)
-    command_start = pyqtSignal(str) # Command start signal
+    finished = pyqtSignal()
+    error = pyqtSignal(str)
+    output = pyqtSignal(str)
+    command_start = pyqtSignal(str)
 
-    # Add a signal specifically for opening a URL, connected by the main window
-    open_url_signal = pyqtSignal(str) # This signal should be passed from MainWindow
-
+    _open_url_signal_instance = None # Class attribute to hold the signal instance? No, instance attribute is better.
 
     def __init__(self, command_list=None, cwd=None, input_data=None, task_func=None, project_root=None, open_url_signal=None, *args, **kwargs):
         super().__init__()
         self._command_list = command_list
-        self._cwd = cwd # Working directory
+        self._cwd = cwd # Working directory for subprocess
         self._input_data = input_data # If command needs stdin input
-        self._task_func = task_func # If not running command_list directly, but calling a specific function
-        self._task_args = args
-        self._task_kwargs = kwargs
+        self._task_func = task_func # Callable wrapper function
+        self._task_args = args # Positional args for task_func
+        self._task_kwargs = kwargs # Keyword args for task_func
         self._project_root = project_root # Project root passed from MainWindow
 
-        # Store the signal instance passed from MainWindow
-        if open_url_signal:
-             self.open_url_signal = open_url_signal # Replace the default signal instance
+        # Store the actual signal instance passed from MainWindow
+        self._open_url_signal_instance = open_url_signal
 
 
     def run(self):
         """
         在线程中执行任务。
+        Ensures finished signal is always emitted.
         """
-        final_out = ""
-        final_err = ""
         final_code = 1 # Assume failure by default
 
         try:
             if self._task_func:
                 # Execute a specific Python function (a wrapper)
-                self.command_start.emit(f"Running task: {self._task_func.__name__}")
-                print(f"\n> Running task: {self._task_func.__name__}") # Console log
+                task_name = getattr(self._task_func, '__name__', 'anonymous_task')
+                self.command_start.emit(f"Running task: {task_name}")
+                print(f"\n> Running task: {task_name}") # Console log
 
-                # Pass project_root and the open_url_signal to the wrapper
-                # Add open_url_signal to kwargs passed to task_func
-                self._task_kwargs['project_root'] = self._project_root
-                self._task_kwargs['open_url_signal'] = self.open_url_signal # Pass the signal
+                # Combine initial kwargs with worker context (project_root, signals etc.)
+                # Ensure worker context doesn't overwrite initial user input kwargs if names clash
+                task_kwargs_with_context = self._task_kwargs.copy()
+                task_kwargs_with_context['project_root'] = self._project_root
+                # Pass the signal instance itself if it exists
+                if self._open_url_signal_instance:
+                     task_kwargs_with_context['open_url_signal'] = self._open_url_signal_instance
+                # Add any other context needed by wrappers here
 
-                result = self._task_func(*self._task_args, **self._task_kwargs)
+                try:
+                    # Call the wrapper function with unpacked args and combined kwargs
+                    result = self._task_func(*self._task_args, **task_kwargs_with_context)
 
-                # Assuming wrapper returns (stdout, stderr, returncode)
-                if isinstance(result, tuple) and len(result) == 3:
-                     out, err, code = result
-                     final_out = out
-                     final_err = err
-                     final_code = code
+                    # Assuming wrapper returns (stdout, stderr, returncode)
+                    if isinstance(result, tuple) and len(result) == 3:
+                         out, err, code = result
+                         final_code = code
 
-                     # --- Handle Specific Wrapper Outputs ---
-                     # If the task was PR creation and succeeded, emit the URL
-                     # Need to compare task_func identity, requires importing it here
-                     from .git_wrappers import wrapper_create_pull_request # Import specific wrapper
+                         # --- Handle Specific Wrapper Outputs / Signals ---
+                         # Import the specific wrapper function here to check its identity
+                         try:
+                              from .git_wrappers import wrapper_create_pull_request
+                              if self._task_func == wrapper_create_pull_request and code == 0 and out:
+                                   # Assuming the URL is the primary output of the PR wrapper (in 'out')
+                                   # Emit the signal so the main window can open the browser
+                                   # Use the stored signal instance
+                                   if self._open_url_signal_instance:
+                                        self._open_url_signal_instance.emit(out)
+                                   # Also emit the output text itself
+                                   self.output.emit("PR URL generated:")
+                                   self.output.emit(out) # Emit the URL string as output
 
-                     if self._task_func == wrapper_create_pull_request and code == 0 and out:
-                          # Assuming the URL is the primary output of the PR wrapper
-                          # Emit the URL so the main window can open the browser
-                          self.open_url_signal.emit(out)
-                          # Also emit the output text itself
-                          self.output.emit("PR URL generated:")
-                          self.output.emit(out) # Emit the URL string as output
+                              # General case: Emit standard output/error from wrapper result
+                              else:
+                                   if out:
+                                       self.output.emit(out)
+                                   if err:
+                                       self.error.emit("--- STDERR ---\n" + err)
 
-                     # General case: Emit standard output/error from wrapper result
-                     else:
-                          if out:
-                              self.output.emit(out)
-                          if err:
-                              self.error.emit("--- STDERR ---\n" + err) # Indicate stderr
+                         except ImportError:
+                              # Handle case where wrapper_create_pull_request might not be importable
+                              # Just emit the output/error returned by the wrapper
+                              if out: self.output.emit(out)
+                              if err: self.error.emit("--- STDERR ---\n" + err)
 
-                else:
-                    # If the wrapper function doesn't return the standard tuple
-                    # Just emit whatever it returned as output
-                    self.output.emit("Task returned non-standard result:")
-                    self.output.emit(str(result))
-                    final_out = str(result) # Capture for logging
-                    final_code = 0 # Assume success if wrapper ran without exception but returned non-standard result
+                    else:
+                          # If the wrapper function doesn't return the standard tuple
+                          self.output.emit("Task returned non-standard result:")
+                          self.output.emit(str(result))
+                          final_code = 0 # Assume success if wrapper ran without exception but returned non-standard result
+
+                except Exception as e:
+                    # Catch exceptions that happen *inside* the wrapper function
+                    error_msg = f"Error executing task '{task_name}': {e}\n{traceback.format_exc()}"
+                    self.error.emit(error_msg)
+                    final_code = 1
+
 
             elif self._command_list:
                 # Execute a direct Git command using Popen for streaming output
                 command_str = ' '.join(self._command_list)
                 self.command_start.emit(f"Executing command: {command_str}")
-                print(f"\n> 执行命令: {command_str}") # Console log
+                # print(f"\n> 执行命令: {command_str}") # Console log
+
+                process = None # Initialize process outside try to ensure it exists in finally
 
                 try:
                     process = subprocess.Popen(
@@ -120,81 +129,79 @@ class GitWorker(QObject):
 
                     # Send input data if provided
                     if self._input_data and process.stdin:
+                        # This might block if the process doesn't read from stdin immediately
+                        # Consider using threads for writing to stdin if it's a complex interaction
                         process.stdin.write(self._input_data)
                         process.stdin.close()
 
                     # Read output line by line and emit signals
-                    # Using separate threads for stdout/stderr readers is safer for real-time
-                    # For simplicity here, we read sequentially, might block if one stream is huge
-                    # before the other finishes.
+                    # Simple sequential read - consider threaded readers for robustness
+                    # Use a timeout or check process.poll() if possible to avoid indefinite blocking
                     stdout_reader = iter(process.stdout.readline, '') if process.stdout else None
                     stderr_reader = iter(process.stderr.readline, '') if process.stderr else None
 
-                    # Interleave reading or just read stdout then stderr
-                    # Let's read stdout then stderr fully before waiting for process end
-                    # Or, process output and error in separate loops or helper functions
-                    # Simple approach: read stdout, then stderr
+                    # Read stdout fully, then stderr fully
                     if stdout_reader:
                         for line in stdout_reader:
-                            self.output.emit(line.strip())
-                            final_out += line # Also capture for logging
+                            self.output.emit(line.rstrip())
 
                     if stderr_reader:
                          for line in stderr_reader:
-                             self.error.emit(line.strip()) # Emit stderr separately
-                             final_err += line # Also capture for logging
+                             self.error.emit(line.rstrip())
 
                     if process.stdout: process.stdout.close()
                     if process.stderr: process.stderr.close()
-
 
                     return_code = process.wait() # Wait for the process to finish
                     final_code = return_code
 
                     if return_code != 0:
                         # Command failed - error already emitted line by line
-                        pass # Error message was emitted during reading
+                        pass # Final status message emitted later
 
 
                 except FileNotFoundError:
                     err_msg = "**Error**: Git command not found. Please ensure Git is installed and in your PATH."
                     self.error.emit(err_msg)
-                    final_err += err_msg
                     final_code = 1 # Ensure non-zero code
 
                 except Exception as e:
-                    err_msg = f"An error occurred during command execution: {e}"
+                    # Catch exceptions during subprocess execution or output reading
+                    err_msg = f"An error occurred during command execution: {e}\n{traceback.format_exc()}"
                     self.error.emit(err_msg)
-                    final_err += err_msg
-                    final_code = 1 # Ensure non-zero code
+                    final_code = 1
+
+                finally:
+                     # Ensure subprocess is cleaned up if something went wrong after Popen
+                     if process and process.poll() is None: # Check if process is still running
+                         try:
+                             print(f"Warning: Process is still running, attempting termination: {' '.join(self._command_list)}", file=sys.stderr)
+                             process.terminate() # Attempt graceful termination
+                             process.wait(timeout=1) # Wait a bit
+                             if process.poll() is None:
+                                 print(f"Warning: Process did not terminate, attempting kill: {' '.join(self._command_list)}", file=sys.stderr)
+                                 process.kill() # Force kill
+                                 process.wait()
+                         except Exception as term_e:
+                              print(f"Error during process termination: {term_e}", file=sys.stderr)
+
 
             else:
                 err_msg = "No command or task function specified for the worker."
                 self.error.emit(err_msg)
-                final_err += err_msg
-                final_code = 1 # Ensure non-zero code
+                final_code = 1
 
         except Exception as e:
-             # Catch exceptions during task_func call or initial setup
-             err_msg = f"An unexpected error occurred in worker: {e}"
+             # Catch any remaining unexpected exceptions outside the inner blocks
+             err_msg = f"An unexpected critical error occurred in worker: {e}\n{traceback.format_exc()}"
              self.error.emit(err_msg)
-             final_err += err_msg
-             final_code = 1 # Ensure non-zero code
+             final_code = 1
 
 
         # --- Final Status Report ---
         if final_code != 0:
              self.output.emit(f"<span style='color:red; font-weight:bold;'>Operation finished with errors (code {final_code}).</span>")
-             # Optional: Show a message box on critical errors
-             # QMessageBox.critical(None, "Operation Failed", "See output for details.") # Cannot show message box from non-GUI thread
-             # Signal to main thread to show message box instead
         else:
              self.output.emit(f"<span style='color:green;'>Operation finished successfully (code {final_code}).</span>")
-
-        # Optional: Log final aggregated output/error to console
-        # print(f"\n--- Worker Finalized (Code: {final_code}) ---")
-        # if final_out: print("Final STDOUT:\n", final_out)
-        # if final_err: print("Final STDERR:\n", final_err)
-        # print("---------------------------------------------")
 
         self.finished.emit() # Signal completion
