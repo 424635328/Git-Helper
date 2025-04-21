@@ -1,6 +1,10 @@
-@ECHO OFF
+@echo off
 chcp 65001 > nul
 setlocal
+
+:: 设置 Git 的编码选项
+git config core.quotepath false
+git config i18n.commitencoding utf-8
 
 :: 获取时间戳 (使用 PowerShell)
 for /f "delims=" %%a in ('powershell -command "(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"') do set "timestamp=%%a"
