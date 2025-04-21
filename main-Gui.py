@@ -1,37 +1,28 @@
 # main-Gui.py
 import sys
 import os
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
-# Import config loading
-from src.config_manager import load_config, config, extract_repo_name_from_upstream_url
+# 仅导入 config 字典和新的非交互式加载函数
+from src.config_manager import config, check_git_repo_and_origin, complete_config_load
 
-# Import the MainWindow class from your gui module
+# 导入主窗口类
 from src.gui.main_window import MainWindow
 
 if __name__ == "__main__":
-    # Determine the project root directory
-    # Assumes main.py is in the root
+    # 确定脚本所在的目录，并将其作为项目根目录传递
+    # Git 命令将在 MainWindow 内部检测到的实际仓库路径下执行
     project_root = os.path.dirname(os.path.abspath(__file__))
-    print(f"Project root determined as: {project_root}") # Console log
+    # print(f"Project root (script location): {project_root}") # Debug
 
-    # Load configuration
-    # Pass project_root to load_config if config.yaml is relative to root
-    load_config("config.yaml") # Load from config.yaml in the root
-
-    # In GUI, initial user input for username/repo might be handled
-    # via a settings dialog or be read from config only.
-    # For this GUI version, we won't prompt on console at startup like the CLI.
-    # The values loaded in 'config' will be used and can potentially be edited via GUI later.
-    # You might want to add a dialog here if config is missing critical info.
+    # 不再在此处加载配置
+    # load_config("config.yaml") # REMOVED
 
     app = QApplication(sys.argv)
 
-    # Create and show the main window
-    # Pass the project root to the MainWindow so it knows where the Git repo is
-    # assuming the script is run from the repo root or needs to operate on a repo at project_root
+    # 创建主窗口，传入脚本根目录（MainWindow 会用它进行初始路径检查）
     main_window = MainWindow(project_root=project_root)
     main_window.show()
 
-    # Start the application event loop
+    # 启动 Qt 事件循环
     sys.exit(app.exec())

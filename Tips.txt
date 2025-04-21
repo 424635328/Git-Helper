@@ -1,2 +1,3 @@
-构建命令：
-python -m PyInstaller --onedir main-Gui.py
+构建-编译命令：
+python -m PyInstaller --noconsole --onedir main-Gui.py
+python -m PyInstaller --onedir main.py
