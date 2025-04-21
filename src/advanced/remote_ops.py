@@ -1,7 +1,7 @@
 # src/advanced/remote_ops.py
 from src.utils import clear_screen
 from src.git_utils import run_git_command
-from src.config_manager import config, extract_repo_name_from_upstream_url # 导入配置和URL提取工具
+from src.config_manager import config# 导入配置和URL提取工具
 import os # Needed for os.path.join etc. if needed, not strictly for git commands cwd here.
 
 

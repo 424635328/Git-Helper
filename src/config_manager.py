@@ -1,84 +1,141 @@
-# src/config_manager.py
-import yaml
 import re
-import os # Added for file path check
+import os
+import subprocess # 用于执行 git 命令
 
 # 定义一个全局变量来存储配置
 config = {}
 
-def extract_repo_name_from_upstream_url(upstream_url):
-    """
-    从 Upstream 仓库地址中提取原始仓库的名称。
-
-    Args:
-      upstream_url: Upstream 仓库的 URL (例如: "https://github.com/owner/repo.git" 或者 "git@github.com:owner/repo.git")
-
-    Returns:
-      如果提取成功, 返回原始仓库的名称 (例如: "owner/repo")。
-      如果提取失败, 返回 None。
-    """
-    if not upstream_url:
+def run_git_command(command_list):
+    """执行 Git 命令并返回其标准输出，错误时返回 None。"""
+    try:
+        # 使用列表形式的命令更安全，避免 shell=True
+        # cwd=os.path.dirname(os.path.dirname(__file__)) # 尝试在项目根目录运行
+        # 更健壮的方式是找到 .git 目录的位置，但对于简单场景，当前工作目录通常可以
+        result = subprocess.run(command_list, capture_output=True, text=True, check=True, encoding='utf-8')
+        return result.stdout.strip()
+    except FileNotFoundError:
+        print(f"错误：未找到 'git' 命令。请确保 Git 已安装并添加到系统 PATH。")
+        return None
+    except subprocess.CalledProcessError as e:
+        # 打印更详细的错误，特别是 stderr
+        error_message = e.stderr.strip()
+        print(f"错误：执行 Git 命令 '{' '.join(command_list)}' 失败。")
+        if error_message:
+            print(f"Git 输出: {error_message}")
+        # 特别检查是否是因为不在 Git 仓库中
+        if "not a git repository" in error_message.lower() or "不是 git 仓库" in error_message:
+             print("错误：当前目录或其父目录似乎不是一个有效的 Git 仓库。")
+        return None
+    except Exception as e:
+        print(f"执行 Git 命令 '{' '.join(command_list)}' 时发生未知错误：{e}")
         return None
 
-    # 修改正则表达式来同时匹配 https 和 git+ssh 协议
-    # 注意：这个正则表达式只适用于 GitHub URL
-    match = re.search(r"github\.com[:/]([^/]+)/([^.]+)", upstream_url)
+def extract_owner_repo_from_url(url):
+    """
+    从仓库 URL 中提取 owner 和 repo 名称。
+
+    Args:
+      url: 仓库的 URL (例如: "https://github.com/owner/repo.git" 或 "git@github.com:owner/repo.git")
+
+    Returns:
+      元组 (owner, repo_name)，如果提取失败则返回 (None, None)。
+    """
+    if not url:
+        return None, None
+
+    # 改进正则表达式以处理 .git 后缀（可选）和其他可能的变体
+    match = re.search(r"github\.com[:/]([^/]+)/([^/.]+?)(?:\.git)?$", url)
 
     if match:
         owner = match.group(1)
         repo_name = match.group(2)
-        return f"{owner}/{repo_name}"
+        return owner, repo_name
     else:
-        return None
+        return None, None
 
-def load_config(config_file="config.yaml"):
-    """加载配置文件"""
+def load_config_from_git():
+    """
+    尝试从 Git 仓库的 remote 配置中加载信息，填充全局 config 字典。
+    不再读取 config.yaml 文件。
+    """
     global config
-    print(f"正在加载配置文件: {config_file}")
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), config_file) # 确保从项目根目录加载 config.yaml
-    try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            loaded_config = yaml.safe_load(f)
-            if loaded_config:
-                config.update(loaded_config) # 使用 update 合并字典
-                print("配置文件加载成功。")
-            else:
-                 print(
-                    "警告：配置文件为空或无法加载有效内容。将使用默认设置，某些功能可能无法正常工作。"
-                )
+    print("--- 正在尝试从 Git 配置中加载信息 ---")
+    config = {} # 重置配置
 
-    except FileNotFoundError:
-        print(
-            f"警告：{config_file} 文件未找到于 {config_path}。将使用默认设置，某些功能可能无法正常工作。"
-        )
-        # config 保持 {} 或已有的默认值
-    except yaml.YAMLError as e:
-        print(f"警告：加载 {config_file} 文件时发生错误：{e}。将使用默认设置。")
-        # config 保持 {} 或已有的默认值
-    except Exception as e:
-         print(f"警告：加载配置文件时发生未知错误：{e}。")
+    # 1. 获取 Origin (Fork) 信息
+    print("正在获取 'origin' (Fork) 信息...")
+    origin_url = run_git_command(["git", "config", "--get", "remote.origin.url"])
+    fork_owner, fork_repo = extract_owner_repo_from_url(origin_url)
 
+    if fork_owner:
+        config["fork_username"] = fork_owner
+        print(f"  [成功] Fork 用户名 (来自 origin): {fork_owner}")
+        config["fork_repo_name"] = fork_repo # 存储 fork 仓库名，可能有用
+    else:
+        config["fork_username"] = "your_github_username" # 占位符
+        print(f"  [警告] 无法从 remote 'origin' URL ({origin_url}) 推断出 Fork 用户名。请检查 'origin' 配置。")
 
-    # 确保关键配置项存在，如果不存在，设置默认值
-    if "default_fork_username" not in config:
-        config["default_fork_username"] = "your_github_username"  # 你的 GitHub 用户名
-        print("警告：'default_fork_username' 未在 config.yaml 中找到，使用默认值。请编辑 config.yaml。")
-    if "default_upstream_url" not in config:
-        config["default_upstream_url"] = "git@github.com:upstream_owner/upstream_repo.git" # 上游仓库地址
-        print("警告：'default_upstream_url' 未在 config.yaml 中找到，使用默认值。请编辑 config.yaml。")
-    if "default_base_repo" not in config:
-         # 尝试从Upstream URL中提取，如果失败，就使用一个提示性的默认值
-        extracted_base = extract_repo_name_from_upstream_url(config.get("default_upstream_url"))
-        config["default_base_repo"] = extracted_base if extracted_base else "upstream_owner/upstream_repo"
-        print("警告：'default_base_repo' 未在 config.yaml 中找到，尝试从 'default_upstream_url' 中提取或使用默认值。请编辑 config.yaml。")
+    # 2. 获取 Origin 的默认分支 (HEAD branch)
+    print("正在获取 'origin' 的默认分支...")
+    # 'git remote show origin' 可能较慢，尝试 'git symbolic-ref refs/remotes/origin/HEAD'
+    origin_head_ref = run_git_command(["git", "symbolic-ref", "refs/remotes/origin/HEAD"])
+    default_branch_name = None
+    if origin_head_ref:
+        # 输出通常是 "refs/remotes/origin/main" 或 "refs/remotes/origin/master"
+        match = re.search(r"refs/remotes/origin/(\S+)", origin_head_ref)
+        if match:
+            default_branch_name = match.group(1)
+            config["default_branch_name"] = default_branch_name
+            print(f"  [成功] 默认分支 (来自 origin HEAD): {default_branch_name}")
+        else:
+            print(f"  [警告] 无法从 'origin' 的 HEAD ref ({origin_head_ref}) 解析默认分支名。")
+    else:
+        # 备选方案：尝试解析 'git remote show origin'
+        print("  [信息] 尝试备选方案 'git remote show origin' 获取默认分支...")
+        origin_show_output = run_git_command(["git", "remote", "show", "origin"])
+        if origin_show_output:
+             match = re.search(r"HEAD branch:\s*(\S+)", origin_show_output)
+             if match:
+                 default_branch_name = match.group(1)
+                 config["default_branch_name"] = default_branch_name
+                 print(f"  [成功] 默认分支 (来自 remote show): {default_branch_name}")
+             else:
+                 print("  [警告] 无法从 'git remote show origin' 输出中找到 HEAD branch。")
+        else:
+            print("  [警告] 执行 'git remote show origin' 失败。")
+
     if "default_branch_name" not in config:
-        config["default_branch_name"] = "main"  # 默认分支名称
-        print("警告: 'default_branch_name' 未在 config.yaml 中找到，使用默认值 'main'.")
+        config["default_branch_name"] = "main" # 最终回退
+        print(f"  [信息] 使用最终回退默认分支名: {config['default_branch_name']}")
 
-    # 初始化运行时可能需要的配置项
-    if "fork_username" not in config:
-        config["fork_username"] = config["default_fork_username"]
-    if "base_repo" not in config:
-        config["base_repo"] = config["default_base_repo"]
+    # 3. 获取 Upstream (Base) 信息
+    print("正在获取 'upstream' (原始仓库) 信息...")
+    upstream_url = run_git_command(["git", "config", "--get", "remote.upstream.url"])
+    base_owner, base_repo_name = extract_owner_repo_from_url(upstream_url)
 
-    # print("当前配置:", config) # 调试用
+    if base_owner and base_repo_name and upstream_url:
+        config["base_repo"] = f"{base_owner}/{base_repo_name}"
+        config["default_upstream_url"] = upstream_url
+        print(f"  [成功] 原始仓库 (来自 upstream): {config['base_repo']}")
+        print(f"  [成功] Upstream URL: {upstream_url}")
+    else:
+        config["base_repo"] = "upstream_owner/upstream_repo" # 占位符
+        config["default_upstream_url"] = "git@github.com:upstream_owner/upstream_repo.git" # 占位符
+        print(f"  [警告] 未找到名为 'upstream' 的 remote 或无法解析其 URL ({upstream_url})。")
+        print("         请确保你已添加 upstream remote: git remote add upstream <原始仓库URL>")
+        print(f"         将使用占位符原始仓库: {config['base_repo']}")
+
+    # 确保运行时需要的 key 存在 (可能部分来自占位符)
+    config.setdefault("fork_username", "your_github_username")
+    config.setdefault("base_repo", "upstream_owner/upstream_repo")
+    config.setdefault("default_branch_name", "main")
+    config.setdefault("default_upstream_url", "git@github.com:upstream_owner/upstream_repo.git")
+
+
+    # 移除旧的 config.yaml 相关设置（如有需要，但现在 load_config_from_git 完全覆盖）
+    # config.pop("default_fork_username", None)
+    # config.pop("default_base_repo", None)
+
+    print("--- Git 配置信息加载完成 ---")
+    print(f"当前推断的配置: Fork 用户='{config['fork_username']}', Base 仓库='{config['base_repo']}', 默认分支='{config['default_branch_name']}'")
+    # print("完整配置:", config) # 调试用
