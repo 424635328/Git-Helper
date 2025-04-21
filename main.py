@@ -2,27 +2,16 @@ import sys
 import os
 
 # Import necessary modules from src
-# 修改导入，使用新的加载函数，不再需要 extract_repo_name_from_upstream_url (因为它在 config_manager 内部使用)
 from src.config_manager import config, load_config_from_git
 from src.utils import clear_screen
 
-# Import specific operation functions from src modules
-# Basic operations (1-5)
+# ... (其他导入保持不变) ...
 from src.basic_operations import (
-    show_status,
-    show_log,
-    show_diff,
-    add_changes,
-    commit_changes,
+    show_status, show_log, show_diff, add_changes, commit_changes,
 )
-# Branch and sync operations (6-9)
 from src.branch_sync import (
-    create_switch_branch,
-    pull_changes,
-    push_branch,
-    sync_fork,
+    create_switch_branch, pull_changes, push_branch, sync_fork,
 )
-# Import the advanced operations driver
 from src.advanced import driver as advanced_driver
 
 
@@ -30,100 +19,130 @@ def main_menu():
     """显示主菜单并获取用户选择"""
     clear_screen()
     print("=====================================================")
-    print(f" [ 项目贡献助手 - 仓库: {config.get('base_repo', '未知')} ]") # 在标题显示仓库
-    print(f" [ Fork 用户: {config.get('fork_username', '未知')} | 默认分支: {config.get('default_branch_name', '未知')} ]") # 显示更多信息
-    print("=====================================================")
-    print("\n 请选择操作:")
-    print("\n --- 高级操作与管理 ---")
-    print(" [10] 进入高级操作菜单 (合并, 变基, 储藏, 标签, 远程等)")
 
-    print("\n --- 分支与同步 ---")
-    print(" [6]  创建/切换分支       (git checkout -b / git checkout)")
-    print(" [7]  拉取远程更改        (git pull origin <当前分支>)") # 菜单提示更具体
-    print(" [8]  推送本地分支        (git push origin <当前分支>)") # 菜单提示更具体
-    print(" [9]  同步 Fork (Upstream) (从 upstream 拉取并推送到 origin)") # 菜单提示更具体
-    print("\n --- 基础操作 ---")
-    print(" [1]  查看仓库状态        (git status)")
-    print(" [2]  查看提交历史        (git log)")
-    print(" [3]  查看文件差异        (git diff)")
-    print(" [4]  添加修改            (git add)")
-    print(" [5]  提交修改            (git commit)")
-    print("\n --- 其他 ---")
-    print(" [0]  退出")
-    while True:
-        choice = input(" 请选择 (0-10): ")
-        if choice == "0" or (choice.isdigit() and 1 <= int(choice) <= 10):
-            return choice
-        else:
-            print("\n **错误**: 无效的选择，请重新选择.")
-            # 不再需要按键继续，让用户直接重新输入
-            # input("按任意键继续...")
+    # --- 根据配置显示标题 ---
+    repo_type = config.get('repo_type', '未确定')
+    base_repo_display = config.get('base_repo', '未加载')
+    origin_user_display = config.get('fork_username', '未加载') # 现在代表 origin 的 owner
+    origin_repo_display = config.get('fork_repo_name', '未加载') # 现在代表 origin 的 repo name
+    branch_display = config.get('default_branch_name', '未加载')
+
+    if repo_type == 'original':
+        print(f" [ 项目贡献助手 - 原始仓库: {base_repo_display} ]")
+        print(f" [ Owner: {origin_user_display} | 默认分支: {branch_display} ]")
+    elif repo_type == 'fork':
+        # 对于 Fork，显示 Base 和 Fork 的信息可能更有用
+        print(f" [ 项目贡献助手 - Base: {base_repo_display} ]")
+        print(f" [ Fork: {origin_user_display}/{origin_repo_display} | 默认分支: {branch_display} ]")
+    else: # 加载失败或未确定
+        print(f" [ 项目贡献助手 - 仓库: {base_repo_display} ]") # 显示检测失败信息
+        print(f" [ 用户: {origin_user_display} | 分支: {branch_display} ]")
+
+    print("=====================================================")
+
+    # --- 根据配置显示菜单项 ---
+    if not config.get('is_git_repo', False) or repo_type == '未确定':
+        print("\n错误：无法加载仓库信息或当前不在 Git 仓库中。")
+        print("\n --- 其他 ---")
+        print(" [0]  退出")
+        while True:
+            choice = input(" 请选择 (0): ")
+            if choice == "0": return choice
+            else: print("\n **错误**: 无效的选择。")
+    else:
+        # 只有在 Git 仓库中且类型确定时显示完整菜单
+        print("\n 请选择操作:")
+        print("\n --- 高级操作与管理 ---")
+        print(" [10] 进入高级操作菜单")
+
+        print("\n --- 分支与同步 ---")
+        print(" [6]  创建/切换分支")
+        print(" [7]  拉取远程更改 (建议从 origin)") # 拉取通常从 origin 或 upstream
+        print(" [8]  推送本地分支 (推送到 origin)")
+
+        # Sync Fork 功能仅对 Fork 类型且成功检测到 Base 仓库时有意义
+        sync_fork_label = "[9]  同步 Fork (从 Upstream)"
+        sync_fork_enabled = False
+        if repo_type == 'fork':
+            # 检查 base_repo 是否检测成功 (不是失败状态)
+            if "检测失败" not in base_repo_display and base_repo_display != '未确定' and base_repo_display != '加载中...':
+                sync_fork_enabled = True
+            else:
+                sync_fork_label += " (需设置 upstream)"
+        else: # original 类型不需要同步
+             sync_fork_label = "[9]  (同步 Fork 不适用于原始仓库)"
+
+        print(f" {sync_fork_label}")
+
+
+        print("\n --- 基础操作 ---")
+        print(" [1]  查看仓库状态")
+        print(" [2]  查看提交历史")
+        print(" [3]  查看文件差异")
+        print(" [4]  添加修改")
+        print(" [5]  提交修改")
+        print("\n --- 其他 ---")
+        print(" [0]  退出")
+
+        while True:
+            choice = input(" 请选择 (0-10): ").strip()
+            # 检查选择是否有效，并阻止选择禁用的 sync_fork
+            if choice == '9' and not sync_fork_enabled:
+                if repo_type == 'original':
+                    print("\n **提示**: 此功能仅适用于 Fork 仓库。")
+                else: # 是 fork 但未成功配置 upstream
+                    print("\n **错误**: 需要先正确设置 'upstream' 远程仓库才能使用此功能。")
+                    print("         请使用 'git remote add upstream <原始仓库URL>' 添加。")
+                input("按任意键继续...")
+                return None # 返回 None 让主循环重新显示菜单
+            elif choice == "0" or (choice.isdigit() and 1 <= int(choice) <= 10):
+                return choice
+            else:
+                print("\n **错误**: 无效的选择，请重新选择.")
 
 
 if __name__ == "__main__":
     # 使用新的函数从 Git 配置加载
     load_config_from_git()
-    input("\n按任意键继续...") # 暂停让用户看到加载的信息
-    # 检查是否成功获取了关键信息，如果使用占位符，可以给用户一个更强的提示
-    if config.get("fork_username") == "your_github_username" or \
-       config.get("base_repo") == "upstream_owner/upstream_repo":
-        print("\n*****************************************************")
-        print("警告：未能完全从 Git 配置中自动推断出所有信息。")
-        print("可能原因：")
-        print("  - 当前目录不是有效的 Git 仓库。")
-        print("  - 未设置名为 'origin' 的 remote 指向你的 Fork。")
-        print("  - 未设置名为 'upstream' 的 remote 指向原始仓库。")
-        print("请检查你的 Git remote 配置 ('git remote -v').")
-        print("脚本将尝试使用占位符值继续，但部分功能可能无法正常工作。")
-        print("*****************************************************")
-        input("\n按任意键确认并继续...") # 暂停让用户看到警告
-    else:
-        print("\nGit 配置信息已成功加载。")
-        # 可以选择性地暂停一下让用户看到加载的信息
-        # input("\n按任意键继续...")
 
-
-    # 不再需要提示用户输入 fork_username 和 base_repo
-    # fork_username_input = ... (删除)
-    # base_repo_input = ... (删除)
-
-    # 打印最终使用的配置（这些值现在由 load_config_from_git 设置）
-    # print(f"\n将使用 GitHub 用户名: {config.get('fork_username')}")
-    # print(f"将使用原始仓库: {config.get('base_repo')}")
-    # print(f"将使用默认分支: {config.get('default_branch_name')}")
-    # input("\n按任意键开始...") # 合并到上面的暂停逻辑或移除
-
-
+    # 主循环
     while True:
-        choice = main_menu()
+        # 检查是否是 Git 仓库或加载失败
+        if not config.get('is_git_repo', False) or config.get('repo_type') == '未确定':
+             choice = main_menu() # 显示受限菜单
+             if choice == '0':
+                 break
+             else: # 理论上不会有其他选择
+                 continue
+
+        choice = main_menu() # 显示完整或部分禁用的菜单
+
+        if choice is None: # 例如选择了禁用的 sync_fork
+            continue
 
         if choice == "0":
             clear_screen()
             print("\n 感谢使用！")
             break
-        # Basic operations
-        elif choice == "1":
-            show_status()
-        elif choice == "2":
-            show_log()
-        elif choice == "3":
-            show_diff()
-        elif choice == "4":
-            add_changes()
-        elif choice == "5":
-            commit_changes()
-        # Branch and sync operations
-        elif choice == "6":
-            create_switch_branch() # 需要确保它能从 config 获取所需信息
-        elif choice == "7":
-            pull_changes() # 需要确保它能从 config 获取所需信息
-        elif choice == "8":
-            push_branch() # 需要确保它能从 config 获取所需信息
+
+        # --- 执行操作 --- (确保操作前检查所需配置是否有效)
+        if choice == "1": show_status()
+        elif choice == "2": show_log()
+        elif choice == "3": show_diff()
+        elif choice == "4": add_changes()
+        elif choice == "5": commit_changes()
+        elif choice == "6": create_switch_branch() # 内部可能需要检查 config
+        elif choice == "7": pull_changes()       # 内部可能需要检查 config
+        elif choice == "8": push_branch()        # 内部可能需要检查 config
         elif choice == "9":
-            sync_fork() # 这个函数特别依赖 config 中的 upstream 和 fork 信息
-        # Advanced Operations Menu Entry
-        elif choice == "10":
-            advanced_driver.run_advanced_menu() # 确保高级操作也能访问 config
-        else:
-            print("\n **错误**: 未知的菜单选项！")
-            input("\n按任意键继续...")
+            # 双重检查，尽管菜单已尝试阻止
+            if config.get('repo_type') == 'fork' and \
+               ("检测失败" not in config.get('base_repo', '检测失败') and \
+                config.get('base_repo') != '未确定'):
+                 sync_fork() # 内部应使用 config['base_repo'] 和 upstream remote
+            else:
+                 # 这个分支理论上不应该被达到，因为菜单逻辑会阻止
+                 print("\n **内部错误**: sync_fork 条件检查失败。")
+                 input("按任意键继续...")
+        elif choice == "10": advanced_driver.run_advanced_menu()
+        # else 分支由 main_menu 处理无效输入
