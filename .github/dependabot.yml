@@ -1,20 +1,106 @@
-# Basic `dependabot.yml` file with
-# minimum configuration for two package managers
+# .github/dependabot.yml
 
+# Dependabot 配置版本，目前为 2
 version: 2
 updates:
-  # Enable version updates for npm
+  # --- npm package updates ---
+  # 如果你的项目确实使用了 Node.js/npm 依赖，保留此配置
+  # 如果没有，可以删除或注释掉此段
   - package-ecosystem: "npm"
-    # Look for `package.json` and `lock` files in the `root` directory
+    # 查找 package.json 和 lock 文件所在的目录
+    # 如果不在根目录，请修改这里的路径
     directory: "/"
-    # Check the npm registry for updates every day (weekdays)
+    # 检查更新的频率：每天 (工作日)
     schedule:
       interval: "daily"
+    # 可选：将次要版本和补丁版本更新合并到一个 PR 中
+    # 这有助于减少 PR 数量，但可能需要更仔细的合并检查
+    groups:
+      minor-patch:
+        patterns: ["*"] # 匹配所有依赖
+        update-types: ["minor", "patch"] # 只分组次要版本和补丁版本
+    # 可选：为 Dependabot PR 添加标签，方便管理和过滤
+    labels:
+      - "dependencies"
+      - "dependabot"
+    # 可选：限制针对此生态系统同时打开的 PR 数量
+    open-pull-requests-limit: 8
+    # 可选：指定自动分配的审阅人或负责人（请替换为你的 GitHub 用户名或团队 slug）
+    # reviewers:
+    #   - "your-github-username"
+    #   - "your-github-team/team-slug"
+    # assignees:
+    #   - "your-github-username"
 
-  # Enable version updates for Docker
+
+  # --- Docker image updates ---
+  # 如果你的项目使用 Dockerfile，保留此配置
+  # 如果没有，可以删除或注释掉此段
   - package-ecosystem: "docker"
-    # Look for a `Dockerfile` in the `root` directory
+    # 查找 Dockerfile 所在的目录
+    # 如果不在根目录，请修改这里的路径
     directory: "/"
-    # Check for updates once a week
+    # 检查更新的频率：每周
     schedule:
       interval: "weekly"
+    # 可选：为 Dependabot PR 添加标签
+    labels:
+      - "dependencies"
+      - "dependabot"
+      - "docker" # 添加一个特定标签
+    # 可选：限制同时打开的 PR 数量
+    open-pull-requests-limit: 3 # Docker 更新可能相对较少
+
+
+  # --- pip (Python) dependency updates ---
+  # 添加 pip 生态系统配置，因为你的代码是 Python
+  - package-ecosystem: "pip"
+    # 查找 requirements.txt 或 setup.py/pyproject.toml 等文件所在的目录
+    # 如果不在根目录，请修改这里的路径
+    directory: "/"
+    # 检查更新的频率：每天 (工作日)
+    schedule:
+      interval: "daily"
+    # 可选：将次要版本和补丁版本更新合并到一个 PR 中
+    groups:
+      minor-patch:
+        patterns: ["*"] # 匹配所有依赖
+        update-types: ["minor", "patch"] # 只分组次要版本和补丁版本
+    # 可选：为 Dependabot PR 添加标签
+    labels:
+      - "dependencies"
+      - "dependabot"
+      - "python" # 添加一个特定标签
+    # 可选：限制同时打开的 PR 数量
+    open-pull-requests-limit: 8
+    # 可选：指定自动分配的审阅人或负责人
+    # reviewers:
+    #   - "your-github-username"
+    # assignees:
+    #   - "your-github-username"
+
+
+  # --- GitHub Actions workflow updates ---
+  # 添加 github-actions 生态系统配置 (位于 .github/workflows/)
+  # 查找 .github/workflows 目录下的 workflow 文件
+  - package-ecosystem: "github-actions" # 这是列表项的开始，前面有2个空格缩进
+    directory: "/" # 目录，相对于上面的 - 多缩进2个空格
+    # directory: "/.github/workflows" # Alternative if needed, depends on how Dependabot handles it. Usually '/' is fine.
+    # 检查更新的频率：每周
+    schedule: # 相对于上面的 - 多缩进2个空格
+      interval: "weekly" # 相对于 schedule 多缩进2个空格
+    # 可选：为 Dependabot PR 添加标签
+    labels: # 相对于上面的 - 多缩进2个空格
+      - "dependencies" # 相对于 labels 多缩进2个空格
+      - "dependabot"
+      - "github_actions"
+    # 可选：限制同时打开的 PR 数量
+    open-pull-requests-limit: 10 # 相对于上面的 - 多缩进2个空格
+    # 可选：指定自动分配的审阅人或负责人（请替换为你的 GitHub 用户名或团队 slug）
+    # 注意：即使是注释掉的行，其缩进也应与同级的 key 对齐
+    reviewers: # 相对于上面的 - 多缩进2个空格
+      - "424635328" # 相对于 reviewers 多缩进2个空格
+    #   - "your-github-team/team-slug"
+    # assignees: # 相对于上面的 - 多缩进2个空格
+    #   - "your-github-username" # 相对于 assignees 多缩进2个空格
+  # 如果你的项目没有使用 GitHub Actions，可以删除或注释掉此段
