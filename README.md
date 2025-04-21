@@ -5,7 +5,7 @@
 1. [Git 官方文档](https://git-scm.com/docs/git#_git_commands)
 2. [Python 官方文档](https://docs.python.org/3/)
 
-![Python Version](https://img.shields.io/badge/python-3.6%2B-blue)
+![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
 [![GitHub Stars](https://img.shields.io/github/stars/YOUR_GITHUB_USERNAME/git-helper?style=social)](https://github.com/YOUR_GITHUB_USERNAME/git-helper/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/YOUR_GITHUB_USERNAME/git-helper?style=social)](https://github.com/YOUR_GITHUB_USERNAME/git-helper/network/members)
 
@@ -13,6 +13,7 @@
 
 ## 📚 目录
 
+- [参考文档](#参考文档)
 - [🚀 项目简介](#-项目简介)
 - [✨ 主要特性](#-主要特性)
 - [✅ 为什么选择 git-helper?](#-为什么选择-git-helper)
