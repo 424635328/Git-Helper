@@ -1,6 +1,6 @@
 # 🌟 git-helper: 命令行 Git 助手
 
-## 📝 ![Git官方文档](https://git-scm.com/docs/git#_git_commands) ![Python官方文档](https://docs.python.org/3/)
+## 📝 - [Git官方文档](https://git-scm.com/docs/git#_git_commands) - [Python官方文档](https://docs.python.org/3/)
 
 ![Python Version](https://img.shields.io/badge/python-3.6%2B-blue)
 [![GitHub Stars](https://img.shields.io/github/stars/YOUR_GITHUB_USERNAME/git-helper?style=social)](https://github.com/YOUR_GITHUB_USERNAME/git-helper/stargazers)
