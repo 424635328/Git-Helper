@@ -2,8 +2,8 @@
 
 ## 参考文档
 
-1. [Git 官方文档](https://git-scm.com/docs/git#_git_commands)
-2. [Python 官方文档](https://docs.python.org/3/)
+1. [Git 官方文档](https://git-scm.com/docs/git#_git_commands) - **学习 Git 的权威指南**
+2. [LazyGit](https://github.com/jesseduffield/lazygit) - **一个简单易用的终端 Git UI 工具，提高 Git 操作效率**
 
 ![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
 [![GitHub Stars](https://img.shields.io/github/stars/424635328/Git-Helper?style=social)](https://github.com/424635328/Git-Helper/stargazers)
