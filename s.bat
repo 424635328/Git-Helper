@@ -13,7 +13,7 @@ echo Timestamp: %timestamp%
 
 :_main
 echo Pulling...
-git pull || (echo "Git pull 失败" && exit /b 1)
+git pull || (echo "Git pull 失败" && pause && exit /b 1)
 
 echo Adding...
 git add . || (echo "Git add 失败" && pause && exit /b 1)
@@ -22,7 +22,7 @@ echo Committing...
 git commit -m "%timestamp%-S.bat" --no-verify || (echo "Git commit 失败" && pause && exit /b 1)
 
 echo Pushing...
-git push || (echo "Git push 失败" && exit /b 1)
+git push || (echo "Git push 失败" && pause && exit /b 1)
 
 echo done
 
