@@ -18,8 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       # python-version matrix is not strictly needed for this job, but can be kept for consistency or future use.
-      # matrix:
-      #   python-version: ["3.8"]
+      matrix:
+        python-version: ["3.8"]
 
     steps:
       - name: Checkout code
