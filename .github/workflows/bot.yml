@@ -10,14 +10,16 @@ on:
   push:
     branches: [main]
   schedule:
+    # Runs every day at midnight UTC
     - cron: '0 0 * * *'
 
 jobs:
   bot:
     runs-on: ubuntu-latest
     strategy:
-      matrix:
-        python-version: ["3.8"]
+      # python-version matrix is not strictly needed for this job, but can be kept for consistency or future use.
+      # matrix:
+      #   python-version: ["3.8"]
 
     steps:
       - name: Checkout code
@@ -25,130 +27,243 @@ jobs:
         with:
           submodules: recursive
 
+      # This step handles most event-driven bot functionalities
       - name: Multi-Function Bot Core
+        # This step is triggered by pull_request, issues, and issue_comment events
+        if: github.event_name == 'pull_request' || github.event_name == 'issues' || github.event_name == 'issue_comment'
         uses: actions/github-script@v6
         with:
           script: |
+            // The 'github' and 'context' objects are automatically provided by actions/github-script
+
             /**
              * Welcomes new contributors with a personalized message on their first issue or PR.
+             * Triggered on 'issues' or 'pull_request' opened events.
              *
              * @returns {Promise<void>}
              */
             async function welcomeNewContributor() {
-              if (github.event.sender.type == 'User') {
-                const isFirstContribution = async () => {
-                  try{
-                    const { data: pulls } = await github.rest.pulls.list({
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      state: 'all',
-                      creator: context.actor,
-                    });
+              // Ensure the event is an 'opened' event for issues or pull requests
+              if (context.payload.action !== 'opened') {
+                  console.log("Not an opened event, skipping welcome message.");
+                  return;
+              }
 
-                    const { data: issues } = await github.rest.issues.listForRepo({
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      state: 'all',
-                      creator: context.actor,
-                    });
+              // Only welcome human users
+              if (github.event.sender.type !== 'User') {
+                console.log("Sender is not a user, skipping welcome message.");
+                return;
+              }
 
-                    return pulls.length + issues.length === 0; //更准确地判断是否是第一个贡献
-                  } catch (error) {
-                    console.error("Error checking contribution history:", error);
-                    return false;  // 遇到错误，默认不是第一次贡献，防止 Action 失败
+              const actor = context.actor; // The user who triggered the event
+
+              console.log(`Checking if ${actor} is a first-time contributor...`);
+
+              try {
+                // List all pull requests created by the actor
+                const { data: pulls } = await github.rest.pulls.list({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  state: 'all', // Include open and closed PRs
+                  creator: actor,
+                });
+
+                // List all issues created by the actor
+                const { data: issues } = await github.rest.issues.listForRepo({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  state: 'all', // Include open and closed issues
+                  creator: actor,
+                });
+
+                // Combine and filter unique contributions (issues + PRs).
+                // Sometimes a single action (like opening a PR) might trigger both issue and PR events briefly.
+                // A more robust check is to see if the count of *previous* contributions is zero.
+                // Since the current event already created one, we check if the total count is exactly 1.
+                const totalContributions = pulls.length + issues.length;
+
+                // Check if this is the very first contribution by this user to this repo
+                // If the current event is the first one they've ever created, the count should be 1.
+                // We need to be careful if the user already has contributions.
+                // Let's refine: count how many issues/PRs were created *before* this one.
+                // This requires iterating through the fetched list and checking creation dates, which is complex.
+                // A simpler, generally reliable approach for initial welcoming is to check if the total count (including the current one) is low.
+                // If totalContributions is 1, it's highly likely this is their first. If it's > 1, they've contributed before.
+
+                // Let's re-evaluate the original check: pulls.length + issues.length === 0
+                // This check would be correct IF the list API only returned contributions *before* the current event.
+                // But it typically returns *all* contributions by the user.
+                // So, if this is truly their first contribution, the list APIs will return data with length 1 (for the current event).
+                // If they had previous contributions, the length will be > 1.
+                // Therefore, the original logic `pulls.length + issues.length === 0` is actually INCORRECT for welcoming the FIRST contribution.
+                // The correct logic should be to check if they have any *previous* contributions.
+                // The most straightforward way using the list API is to see if the total count returned is 1.
+                // If the count is 1, this event is likely their first ever issue/PR in this repo.
+
+                const isFirstContribution = totalContributions === 1;
+
+                console.log(`Total contributions by ${actor}: ${totalContributions}`);
+
+                if (isFirstContribution) {
+                  const message = `🎉 Welcome to the project, @${actor}! 🎉\n\nThank you so much for your first contribution! We really appreciate you taking the time to contribute. We will review your ${github.event_name === 'pull_request' ? 'pull request' : 'issue'} as soon as possible.`;
+
+                  // Ensure we have an issue_number to comment on
+                  if (context.issue && context.issue.number) {
+                      console.log(`Sending welcome message to issue/PR #${context.issue.number}`);
+                      await github.rest.issues.createComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: context.issue.number,
+                        body: message,
+                      });
+                      console.log("Welcome message sent.");
+                  } else {
+                      console.warn("Could not determine issue number for welcome message.");
                   }
-
-                };
-
-                try {
-                  if (await isFirstContribution()) {
-                    const message = `🎉 Welcome to the project, @${context.actor}! 🎉\n\nThank you so much for your first contribution! We really appreciate you taking the time to contribute.  We will review your pull request (or issue) as soon as possible.`;
-
-                    await github.rest.issues.createComment({
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      issue_number: context.issue.number,
-                      body: message,
-                    });
-                  }
-                } catch (error) {
-                  console.error("Error welcoming new contributor:", error);
+                } else {
+                    console.log(`${actor} has contributed before, skipping welcome message.`);
                 }
+              } catch (error) {
+                console.error("Error checking contribution history or welcoming new contributor:", error);
+                // Continue execution even if welcoming fails
               }
             }
 
             /**
              * Labels issues and PRs based on keywords found in their titles.
+             * Triggered on 'issues' or 'pull_request' opened or edited events.
              *
              * @returns {Promise<void>}
              */
             async function labelIssuesAndPRs() {
+              // Only run on opened or edited events for issues or pull requests
+              if (context.payload.action !== 'opened' && context.payload.action !== 'edited') {
+                  console.log("Not an opened or edited event for issue/PR, skipping labeling.");
+                  return;
+              }
+
               try {
-                const title = context.payload.pull_request ? context.payload.pull_request.title : context.payload.issue.title;
+                const eventPayload = context.payload.pull_request || context.payload.issue;
+                if (!eventPayload) {
+                    console.warn("Could not find issue or pull request payload, skipping labeling.");
+                    return;
+                }
+
+                const title = eventPayload.title;
                 const issueNumber = context.issue.number;
+
+                if (!title || !issueNumber) {
+                    console.warn("Could not determine title or issue number, skipping labeling.");
+                    return;
+                }
+
+                console.log(`Labeling issue/PR #${issueNumber} with title: "${title}"`);
 
                 let labels = [];
 
-                if (title && title.toLowerCase().includes('bug')) {
+                if (title.toLowerCase().includes('bug')) {
                   labels.push('bug');
                 }
 
-                if (title && title.toLowerCase().includes('feature')) {
+                if (title.toLowerCase().includes('feature')) {
                   labels.push('feature');
                 }
 
-                if (title && title.toLowerCase().includes('documentation')) {
+                if (title.toLowerCase().includes('documentation')) {
                   labels.push('documentation');
                 }
 
+                 if (title.toLowerCase().includes('question')) {
+                  labels.push('question'); // Added a common label
+                }
+
+
                 if (labels.length > 0) {
+                  console.log(`Adding labels: ${labels.join(', ')}`);
                   await github.rest.issues.addLabels({
                     owner: context.repo.owner,
                     repo: context.repo.repo,
                     issue_number: issueNumber,
                     labels: labels,
                   });
+                  console.log("Labels added.");
+                } else {
+                    console.log("No matching keywords found in title, no labels added.");
                 }
               } catch (error) {
                 console.error("Error labeling issue/PR:", error);
+                // Continue execution even if labeling fails
               }
             }
 
             /**
              * Comments on a PR when it is closed (merged or not).
+             * Triggered on 'pull_request' closed event.
              *
              * @returns {Promise<void>}
              */
             async function commentWhenPRClosed() {
-              try {
-                if (github.event_name === 'pull_request' && context.payload.action === 'closed') {
-                  const merged = context.payload.pull_request.merged;
-                  const commentBody = merged ? "🎉 This PR has been successfully merged! 🎉" : "This PR has been closed without merging.";
+              // Only run on pull_request closed event
+              if (github.event_name !== 'pull_request' || context.payload.action !== 'closed') {
+                  console.log("Not a pull_request closed event, skipping PR closed comment.");
+                  return;
+              }
 
-                  await github.rest.issues.createComment({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    issue_number: context.issue.number,
-                    body: commentBody,
-                  });
+              try {
+                const merged = context.payload.pull_request.merged;
+                const commentBody = merged ? "🎉 This PR has been successfully merged! 🎉" : "This PR has been closed without merging.";
+                const issueNumber = context.issue.number;
+
+                if (!issueNumber) {
+                    console.warn("Could not determine issue number for PR closed comment.");
+                    return;
                 }
+
+                console.log(`Commenting on closed PR #${issueNumber}: ${commentBody}`);
+
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: commentBody,
+                });
+                console.log("PR closed comment sent.");
+
               } catch (error) {
                 console.error("Error commenting on PR closure:", error);
+                // Continue execution even if commenting fails
               }
             }
 
             /**
-             * Reacts to specific comments on issues with a thumbs up emoji.
+             * Reacts to specific comments on issues/PRs with a thumbs up emoji.
+             * Triggered on 'issue_comment' created or edited events.
              *
              * @returns {Promise<void>}
              */
             async function reactToIssueComments() {
-              try {
-                if (github.event_name === 'issue_comment' && (context.payload.action === 'created' || context.payload.action === 'edited')) {
-                  const commentBody = context.payload.comment.body.toLowerCase();
-                  const commentId = context.payload.comment.id;
+              // Only run on issue_comment created or edited event
+              if (github.event_name !== 'issue_comment' || (context.payload.action !== 'created' && context.payload.action !== 'edited')) {
+                  console.log("Not an issue_comment created or edited event, skipping comment reaction.");
+                  return;
+              }
 
-                  if (commentBody.includes('good job') || commentBody.includes('nice work')) {
+              try {
+                const commentBody = context.payload.comment.body;
+                const commentId = context.payload.comment.id;
+
+                if (!commentBody || !commentId) {
+                    console.warn("Could not determine comment body or ID, skipping comment reaction.");
+                    return;
+                }
+
+                console.log(`Checking comment #${commentId} for reaction keywords.`);
+
+                // Use a regular expression for more flexible matching, ignoring case and punctuation
+                const positiveKeywords = /\b(good job|nice work|great job)\b/i;
+
+                if (positiveKeywords.test(commentBody)) {
+                    console.log(`Found positive keyword in comment #${commentId}, adding reaction.`);
                     // React with a thumbs up
                     await github.rest.reactions.createForIssueComment({
                       owner: context.repo.owner,
@@ -156,69 +271,162 @@ jobs:
                       comment_id: commentId,
                       content: '+1', // Thumbs up
                     });
-                  }
+                    console.log("Reaction added.");
+                } else {
+                    console.log(`No positive keywords found in comment #${commentId}.`);
                 }
               } catch (error) {
                 console.error("Error reacting to issue comment:", error);
+                // Continue execution even if reaction fails
               }
             }
 
+            // --- Main execution logic for event-driven functions ---
             try {
+              console.log(`Event triggered: ${github.event_name}, action: ${context.payload.action}`);
+
               if (github.event_name === 'pull_request' || github.event_name === 'issues') {
                 await welcomeNewContributor();
                 await labelIssuesAndPRs();
-
-                if (github.event_name === 'pull_request' && context.payload.action === 'closed') {
-                  await commentWhenPRClosed();
-                }
+                // commentWhenPRClosed is called separately because it only applies to PR closed events
               }
+
+              if (github.event_name === 'pull_request' && context.payload.action === 'closed') {
+                   await commentWhenPRClosed();
+              }
+
               if (github.event_name === 'issue_comment') {
                 await reactToIssueComments();
               }
+
             } catch (error) {
-              console.error("Error during bot execution:", error);
-              throw error; // Re-throw the error to fail the action
+              console.error("Unhandled error during bot core execution:", error);
+              // Re-throw the error to fail the action, helps in debugging workflow issues
+              throw error;
             }
 
+
+      # This step handles the scheduled task for closing inactive issues
       - name: Close Inactive Issues (Scheduled)
         if: github.event_name == 'schedule'
         uses: actions/github-script@v6
         with:
           script: |
-            const github = require('@actions/github');
-            const context = github.context;
+            // github and context objects are automatically provided by actions/github-script
 
-            const DAYS_BEFORE_CLOSE = 30;
+            const DAYS_BEFORE_WARN = 23; // Days before adding a warning comment
+            const DAYS_BEFORE_CLOSE = 30; // Days before closing the issue
+            const WARNING_COMMENT_MARKER = '<!-- bot: inactive-issue-warning -->'; // Marker to avoid duplicate warnings
+            const EXCLUDE_LABELS = ['pinned', 'wontfix', 'priority:high']; // Labels to exclude from closing
 
+            /**
+             * Gets open issues that haven't been updated recently.
+             * @returns {Promise<Array<Object>>} An array of inactive issue objects.
+             */
             async function getInactiveIssues() {
+              console.log("Fetching open issues...");
               try {
+                // Fetch open issues, sorted by updated time ascending
                 const { data: issues } = await github.rest.issues.listForRepo({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   state: 'open',
                   sort: 'updated',
                   direction: 'asc',
-                  per_page: 100,
+                  per_page: 100, // Fetch up to 100 issues per page
+                  // Add more pages if needed, but 100 is often sufficient for typical repos
                 });
 
+                console.log(`Found ${issues.length} open issues.`);
+
                 const now = new Date();
-                const inactiveIssues = issues.filter(issue => {
+                const issuesToProcess = issues.filter(issue => {
+                  // Exclude pull requests
+                  if (issue.pull_request) {
+                    return false;
+                  }
+
+                  // Exclude issues with specific labels
+                  const hasExcludedLabel = issue.labels.some(label =>
+                    typeof label === 'string' ? EXCLUDE_LABELS.includes(label.toLowerCase()) : EXCLUDE_LABELS.includes(label.name.toLowerCase())
+                  );
+                  if (hasExcludedLabel) {
+                      console.log(`Skipping issue #${issue.number} due to excluded label.`);
+                      return false;
+                  }
+
+
                   const updatedAt = new Date(issue.updated_at);
-                  const diff = now.getTime() - updatedAt.getTime();
-                  const days = Math.ceil(diff / (1000 * 3600 * 24));
-                  return days >= DAYS_BEFORE_CLOSE && !issue.pull_request;
+                  const diffTime = now.getTime() - updatedAt.getTime();
+                  const days = Math.floor(diffTime / (1000 * 3600 * 24)); // Use floor for strictness
+
+                  // Include issues that are either due for a warning or due for closing
+                  return days >= DAYS_BEFORE_WARN;
                 });
-                return inactiveIssues;
+
+                 console.log(`Found ${issuesToProcess.length} issues potentially due for processing.`);
+
+                return issuesToProcess;
+
               } catch (error) {
                 console.error("Error listing issues:", error);
-                return []; // 发生错误时返回空数组，避免 Action 失败
+                return []; // Return empty array on error
               }
             }
 
+            /**
+             * Checks if a warning comment has already been added to an issue.
+             * @param {number} issueNumber - The issue number.
+             * @returns {Promise<boolean>} True if a warning comment with the marker exists, false otherwise.
+             */
+            async function hasWarningComment(issueNumber) {
+                try {
+                    const { data: comments } = await github.rest.issues.listComments({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: issueNumber,
+                        per_page: 100, // Fetch recent comments
+                    });
+                    return comments.some(comment => comment.body && comment.body.includes(WARNING_COMMENT_MARKER));
+                } catch (error) {
+                    console.error(`Error checking for warning comment on issue #${issueNumber}:`, error);
+                    return false; // Assume no warning comment on error
+                }
+            }
+
+            /**
+             * Adds a warning comment to an issue.
+             * @param {Object} issue - The issue object.
+             * @returns {Promise<void>}
+             */
+            async function addWarningComment(issue) {
+                const issueNumber = issue.number;
+                 console.log(`Adding warning comment to issue #${issueNumber}...`);
+                try {
+                    const message = `This issue has been inactive for ${DAYS_BEFORE_WARN} days. It will be automatically closed in ${DAYS_BEFORE_CLOSE - DAYS_BEFORE_WARN} days if no further activity occurs.\n\n${WARNING_COMMENT_MARKER}`;
+                     await github.rest.issues.createComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: issueNumber,
+                        body: message,
+                    });
+                    console.log(`Warning comment added to issue #${issueNumber}.`);
+                } catch (error) {
+                    console.error(`Error adding warning comment to issue #${issueNumber}:`, error);
+                }
+            }
+
+
+            /**
+             * Closes a given issue and adds a closing comment.
+             * @param {Object} issue - The issue object.
+             * @returns {Promise<void>}
+             */
             async function closeIssue(issue) {
               const issueNumber = issue.number;
+               console.log(`Closing issue #${issueNumber}...`);
               try {
-                const message = `This issue has been automatically closed due to inactivity.`;
+                const message = `This issue has been automatically closed due to inactivity after ${DAYS_BEFORE_CLOSE} days. If you believe this issue is still relevant, please reopen it or create a new one.`;
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -231,24 +439,56 @@ jobs:
                   repo: context.repo.repo,
                   issue_number: issueNumber,
                   state: 'closed',
-                  reason: 'not_planned',
+                  reason: 'not_planned', // or 'completed' if appropriate, 'not_planned' is common for inactivity
                 });
-                console.log(`Closed issue #${issueNumber}`);
+                console.log(`Successfully closed issue #${issueNumber}.`);
               } catch (error) {
                 console.error(`Error closing issue #${issueNumber}:`, error);
               }
             }
 
-            async function main() {
-              const inactiveIssues = await getInactiveIssues();
+            // --- Main execution logic for scheduled tasks ---
+            async function mainScheduledTask() {
+              console.log("Starting scheduled task: Close Inactive Issues.");
+              const issuesToProcess = await getInactiveIssues();
 
-              if (inactiveIssues.length > 0) {
-                for (const issue of inactiveIssues) {
-                  await closeIssue(issue);
-                }
-              } else {
-                console.log('No inactive issues found.');
+              if (issuesToProcess.length === 0) {
+                console.log('No issues found that are due for warning or closing.');
+                return;
               }
+
+              console.log(`Processing ${issuesToProcess.length} issues...`);
+
+              const now = new Date();
+
+              for (const issue of issuesToProcess) {
+                  const updatedAt = new Date(issue.updated_at);
+                  const diffTime = now.getTime() - updatedAt.getTime();
+                  const days = Math.floor(diffTime / (1000 * 3600 * 24));
+
+                  if (days >= DAYS_BEFORE_CLOSE) {
+                      // Issue is old enough to be closed
+                      console.log(`Issue #${issue.number} is ${days} days old, due for closing.`);
+                      await closeIssue(issue);
+                  } else if (days >= DAYS_BEFORE_WARN) {
+                      // Issue is old enough for a warning, check if warning already exists
+                      const warned = await hasWarningComment(issue.number);
+                      if (!warned) {
+                           console.log(`Issue #${issue.number} is ${days} days old, due for warning.`);
+                          await addWarningComment(issue);
+                      } else {
+                           console.log(`Issue #${issue.number} is ${days} days old, warning already exists.`);
+                      }
+                  }
+              }
+               console.log("Finished processing inactive issues.");
             }
 
-            await main();
+            // Execute the appropriate main function based on the event
+             if (github.event_name === 'schedule') {
+                 await mainScheduledTask();
+             } else {
+                 // The first github-script step handles other events,
+                 // but this structure allows potential future logic specific to other events here.
+                 console.log(`This step is not configured for event: ${github.event_name}. Skipping.`);
+             }
