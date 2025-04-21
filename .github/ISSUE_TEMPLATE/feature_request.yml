@@ -1,0 +1,68 @@
+name: 💡 Feature Request
+about: 建议新的功能或改进现有功能。
+
+labels:
+  - feature request
+  - enhancement
+  - needs triage # 标记为需要分类或初步检查
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        欢迎提出新的想法！
+
+        请尽量详细地描述您的功能建议，帮助我们理解其价值和实现方式。
+
+  - type: textarea
+    id: feature
+    attributes:
+      label: 功能描述
+      description: 请清晰地描述您希望添加或改进的功能。
+      placeholder: 例如：希望在高级菜单中增加一个选项，用于清理旧的本地跟踪分支。
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 解决什么问题？
+      description: 这个功能解决了用户在使用 git-helper 或 Git 时遇到的什么问题？
+      placeholder: 例如：当我在 Fork/同步很多仓库后，会有很多已经合并或删除的远程分支对应的本地跟踪分支，手动清理很麻烦。
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 建议的解决方案或实现方式 (可选)
+      description: 您认为这个功能应该如何实现？它会如何融入现有的菜单结构？请提供任何技术细节或实现思路。
+      placeholder: 例如：可以在高级菜单的“分支管理”子菜单下增加一个选项，运行 `git fetch --prune` 后再列出可以安全删除的本地分支，并提供交互式选择删除。
+      render: markdown
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 考虑过的其他方案 (可选)
+      description: 您是否考虑过其他方式来解决这个问题？为什么选择这个方案？
+      render: markdown
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 其他上下文信息 (可选)
+      description: 任何其他有助于理解您的建议的信息。
+      render: markdown
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: 确认事项
+      description: 请确认您已完成以下事项：
+      options:
+        - label: 我已搜索了现有的问题和已关闭的 Pull Request，没有发现类似的建议。
+          required: true
+        - label: 我已阅读并理解了项目的贡献指南 (CONTRIBUTING.md，如果存在的话)。
+          required: true
