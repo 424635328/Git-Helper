@@ -220,18 +220,6 @@ _高级操作菜单界面示例 (进入选项 10 后)_
 ![Git Status Screenshot](docs/screenshots/git_status.png)
 _查看仓库状态示例_
 
-![Git Log Screenshot](docs/screenshots/git_log_graph.png)
-_查看图形化提交历史示例_
-
-![Sync Fork Example Screenshot](docs/screenshots/sync_fork.png)
-_同步 Fork 流程示例_
-
-![Create PR Example Screenshot](docs/screenshots/create_pr_url.png)
-_生成 Pull Request URL 示例_
-
-![Dangerous Reset Warning Screenshot](docs/screenshots/reset_warning.png)
-_危险操作 (如 Reset) 警告示例_
-
 ## 🤝 贡献
 
 非常欢迎社区的贡献！如果您有改进意见、发现 Bug 或想添加新功能，请随时提交 Issue 或 Pull Request。
