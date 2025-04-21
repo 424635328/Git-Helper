@@ -6,10 +6,10 @@
 2. [Python 官方文档](https://docs.python.org/3/)
 
 ![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
-[![GitHub Stars](https://img.shields.io/github/stars/YOUR_GITHUB_USERNAME/git-helper?style=social)](https://github.com/YOUR_GITHUB_USERNAME/git-helper/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/YOUR_GITHUB_USERNAME/git-helper?style=social)](https://github.com/YOUR_GITHUB_USERNAME/git-helper/network/members)
+[![GitHub Stars](https://img.shields.io/github/stars/424635328/Git-Helper?style=social)](https://github.com/424635328/Git-Helper/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/424635328/Git-Helper?style=social)](https://github.com/424635328/Git-Helper/network/members)
 
-**重要提示: 请将所有 `YOUR_GITHUB_USERNAME` 替换为您的实际 GitHub 用户名，并将仓库名称 `git-helper` 替换为您的仓库名称 (如果不同)！**
+**重要提示: 如果您 Fork 了本仓库，请将 README 中的 `424635328/Git-Helper` 相关链接替换为您自己的 GitHub 用户名和仓库名称！**
 
 ## 📚 目录
 
@@ -81,6 +81,7 @@
 - **内置安全提示:** 对如 `rebase`, `reset --hard` 等危险操作提供醒目的警告和多次确认机制，最大程度降低误操作风险。
 - **易于扩展:** 基于 Python 编写，采用模块化设计，您可以轻松理解代码并根据自己的需求添加或修改功能。
 - **聚焦协作:** 特别优化了 Fork、Upstream 同步和 PR 创建相关的流程，提升开源贡献效率。
+- **社区脚本收纳:** 提供 `others/` 目录，方便社区贡献独立的、不直接集成到主菜单的实用脚本，共享更多便民工具。
 
 ## 📝 项目结构
 
@@ -88,7 +89,8 @@
 .
 ├── config.yaml              # 用户自定义配置文件
 ├── main.py                  # 程序入口，加载配置，驱动主菜单
-├── git_operation_archive.md # 新增: Git 操作详细档案
+├── git_operation_archive.md # Git 操作详细档案
+├── others/                  # 存放社区贡献的独立脚本和便民工具
 └── src/
     ├── __init__.py          # 使 src 成为一个 Python 包
     ├── config_manager.py    # 负责加载和管理 config.yaml 中的配置
@@ -96,6 +98,7 @@
     ├── git_utils.py         # 负责执行 Git 命令的核心函数，处理错误输出
     ├── basic_operations.py  # 包含基础 Git 操作的函数 (status, log, diff, add, commit)
     ├── branch_sync.py       # 包含分支与同步操作的函数 (checkout, pull, push, sync_fork)
+    ├── gui                  # 包含图形化界面相关的代码
     └── advanced/            # 高级操作与管理功能的子目录
         ├── __init__.py      # 使 advanced 成为一个 Python 包
         ├── driver.py        # 高级操作的入口，显示高级菜单并分发调用
@@ -107,13 +110,14 @@
         ├── branch_cleanup.py # 分支删除操作 (local/remote branch -d/-D, push --delete)
         ├── pr_ops.py        # Pull Request 创建操作 (生成 URL)
         └── dangerous_ops.py # 危险操作 (reset --hard)
+        
 ```
 
 ## 📚 Git 操作参考手册
 
 想要深入了解 `git-helper` 各个菜单项对应的 Git 命令、其背后原理和更多细节？请查阅我们的详细 Git 操作档案：
 
-👉 [**Git 操作档案 (git_operation_archive.md)**](docs/git_operation_archive.md)
+👉 [**Git 操作档案 (git_operation_archive.md)**](git_operation_archive.md)
 
 这个档案为你提供了每个操作的命令解释、用途、潜在风险和实用建议，帮助你更好地理解和使用 Git。
 
@@ -122,11 +126,9 @@
 ### 1. **克隆仓库:**
 
 ```bash
-git clone https://github.com/YOUR_GITHUB_USERNAME/git-helper.git
-cd git-helper
+git clone https://github.com/424635328/Git-Helper.git
+cd Git-Helper
 ```
-
-请将 `YOUR_GITHUB_USERNAME` 替换为您的实际 GitHub 用户名，并将 `git-helper` 替换为您的仓库名称！
 
 ### 2. **安装依赖:**
 
@@ -138,7 +140,7 @@ pip install PyYAML
 
 ### 3. **配置 config.yaml:**
 
-在 `git-helper` 项目的**根目录**下创建一个名为 `config.yaml` 的文件（如果不存在），用于存储默认配置。使用以下模板并根据实际情况修改：
+在 `Git-Helper` 项目的**根目录**下创建一个名为 `config.yaml` 的文件（如果不存在），用于存储默认配置。使用以下模板并根据实际情况修改：
 
 ```yaml
 # config.yaml
@@ -146,18 +148,20 @@ pip install PyYAML
 
 # 你的 GitHub 用户名，用于构建 Pull Request URL
 # 例如: default_fork_username: octocat
-default_fork_username: your_github_username
+default_fork_username: username # 更新为你的用户名
 
 # Upstream 原始仓库的地址，用于设置 upstream remote 和推断 default_base_repo
 # 可以是 HTTPS 或 SSH 地址
 # 例如: default_upstream_url: git@github.com:torvalds/linux.git
 # 或者: default_upstream_url: https://github.com/torvalds/linux.git
+# 请替换为你实际需要同步的原始仓库地址
 default_upstream_url: git@github.com:upstream_owner/upstream_repo.git
 
 # 原始仓库的名称，格式为 owner/repo，用于构建 Pull Request URL
 # 例如: default_base_repo: torvalds/linux
 # 如果 default_upstream_url 配置正确，程序会尝试从 URL 中提取该值作为默认值。
 # 如果无法提取或未配置 default_upstream_url，请手动设置此项。
+# 请替换为你实际需要同步的原始仓库 owner/repo
 default_base_repo: upstream_owner/upstream_repo
 
 # 默认的主分支名称 (例如 main, master)
@@ -177,7 +181,7 @@ default_branch_name: main
 - **创建别名 (Bash/Zsh 示例):** 将以下行添加到您的 `~/.bashrc` 或 `~/.zshrc` 文件中：
 
   ```bash
-  alias gh="python /path/to/your/git-helper/main.py"
+  alias gh="python /path/to/your/Git-Helper/main.py"
   ```
 
   然后运行 `source ~/.bashrc` 或 `source ~/.zshrc` 使更改生效。之后就可以直接在终端输入 `gh` 在任何 Git 仓库目录下运行脚本了。
@@ -188,7 +192,7 @@ default_branch_name: main
 2. **运行脚本:**
 
    ```bash
-   python /path/to/your/git-helper/main.py
+   python /path/to/your/Git-Helper/main.py
    # 或者如果你设置了别名或添加到 PATH:
    # gh
    ```
@@ -213,8 +217,6 @@ default_branch_name: main
 
 ## 📸 截图示例
 
-_(请自行替换以下占位符图片链接为您的实际截图链接，并将截图文件放在如 `docs/screenshots/` 目录下)_
-
 ### 示例图片
 
 ![Main Menu Screenshot](docs/screenshots/main_menu.png)
@@ -230,15 +232,23 @@ _查看仓库状态示例_
 
 非常欢迎社区的贡献！如果您有改进意见、发现 Bug 或想添加新功能，请随时提交 Issue 或 Pull Request。
 
-1. Fork 本仓库。
+1. Fork 本仓库 [`https://github.com/424635328/Git-Helper`](https://github.com/424635328/Git-Helper)。
 2. 创建一个新的特性分支 (`git checkout -b feature/your-feature-name`)。
-3. 在 `src/` 目录下找到合适的文件（或创建新的文件/目录）实现您的功能。
+3. 在 `src/` 目录下找到合适的文件（或创建新的文件/目录）实现您的功能，或者将独立的便民脚本放在 `others/` 文件夹中。
 4. 添加或修改相应的测试（如果适用）。
 5. 提交您的修改 (`git commit -am 'feat: Add new feature'`)。请使用清晰的提交信息。
 6. 将分支推送到您的 Fork 仓库 (`git push origin feature/your-feature-name`)。
 7. 创建一个 Pull Request 到本仓库。
 
-请尽量遵循 PEP 8 编码规范，并为您的修改添加适当的文档或注释，特别是对于新的函数或模块。如果修改或新增了 Git 命令，请考虑更新 [Git 操作档案](git_operation_archive.md)。
+请尽量遵循 PEP 8 编码规范，并为您的修改添加适当的文档或注释，特别是对于新的函数或模块。如果修改或新增了 Git 命令，请考虑更新 [Git 操作档案](docs/git_operation_archive.md)。
+
+---
+
+**关于贡献独立脚本的说明:**
+
+如果您贡献的是不直接集成到主菜单中的、独立的、或特定场景下的便民脚本（即“特殊类型”脚本），请将其放在项目根目录的 `others/` 文件夹中。这些脚本可以是任何语言编写的，只要它们与 Git 操作相关且能提供便利。请考虑在 `others/` 文件夹内提供一个简短的 README (`others/README.md`) 说明每个脚本的用途、依赖和使用方法。这有助于其他用户和维护者理解和使用您的贡献。
+
+---
 
 ## 📄 许可协议
 
