@@ -21,7 +21,7 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     # 应用一些样式 (可选)
-    # app.setStyle('Fusion') # 'Fusion', 'Windows', 'macOS'
+    app.setStyle('Windows') # 'Fusion', 'Windows', 'macOS'
 
     main_win = MainWindow()
     main_win.show()
