@@ -1,0 +1,30 @@
+# These are examples of funding links. See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button
+#
+# 这是一些赞助链接的示例。请参阅 GitHub 官方文档了解更多信息。
+# https://docs.github.com/zh/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button
+#
+# 请根据你的实际情况替换以下占位符和信息。移除你不需要的行。
+
+# GitHub Sponsors - 填入你的 GitHub 用户名或组织名 (可以是列表)
+# 对于此仓库 (424635328/Git-Helper)，所有者是 424635328
+github: [424635328]
+
+# 其他可选的赞助方式 (请移除不需要的行，并替换占位符)
+#
+# Patreon - 填入你的 Patreon 用户名
+# patreon: <USERNAME>
+#
+# Open Collective - 填入你的 Open Collective 项目名
+# open_collective: <PROJECT_NAME>
+#
+# Ko-fi - 填入你的 Ko-fi 用户名
+# ko_fi: <USERNAME>
+#
+# Tidelift - 填入你的 Tidelift 包名
+# tidelift: <PACKAGE_NAME>
+#
+# Community Bridge - 填入你的 Community Bridge 项目名
+# community_bridge: <PROJECT_NAME>
+#
+# 自定义链接 - 可以是单个链接或列表。填入完整的 URL。
+# custom: ['https://example.com/donate', 'https://another.example.com/support']
