@@ -241,7 +241,7 @@ _查看仓库状态示例_
       <td align="center" valign="top" width="14.28%">
         <a href="https://github.com/424635328">
           <img src="https://avatars.githubusercontent.com/u/133365865?v=4"
-               width="150px;"
+               width="50px;"
                alt="424635328"
                style="border-radius: 50%;"/>
         </a>
