@@ -8,6 +8,7 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+database/
 build/
 develop-eggs/
 dist/
@@ -173,4 +174,4 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-database/
+
