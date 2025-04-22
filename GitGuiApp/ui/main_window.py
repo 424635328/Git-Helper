@@ -250,11 +250,12 @@ class MainWindow(QMainWindow):
         command_builder_layout_2 = QHBoxLayout()
         self._add_command_button(command_builder_layout_2, "Reset...", "添加 'git reset ' 到序列 (需要输入)", self._add_reset_to_sequence)
         self._add_command_button(command_builder_layout_2, "Revert...", "添加 'git revert <commit>' 到序列 (需要输入)", self._add_revert_to_sequence)
+        self._add_command_button(command_builder_layout_2, "Rebase...", "添加 'git rebase ' 到序列 (需要输入)", self._add_rebase_to_sequence)
         self._add_command_button(command_builder_layout_2, "Stash Save...", "添加 'git stash save' 到序列 (可输入消息)", self._add_stash_save_to_sequence)
-        self._add_command_button(command_builder_layout_2, "Stash Pop", "添加 'git stash pop' 到序列", lambda: self._add_command_to_sequence("git stash pop"))
         left_layout.addLayout(command_builder_layout_2)
 
         command_builder_layout_3 = QHBoxLayout()
+        self._add_command_button(command_builder_layout_3, "Stash Pop", "添加 'git stash pop' 到序列", lambda: self._add_command_to_sequence("git stash pop"))
         self._add_command_button(command_builder_layout_3, "Tag...", "添加 'git tag <name>' 到序列 (需要输入)", self._add_tag_to_sequence)
         self._add_command_button(command_builder_layout_3, "Remote...", "添加 'git remote ' 到序列 (需要补充)", lambda: self._add_command_to_sequence("git remote "))
         self._add_command_button(command_builder_layout_3, "Restore...", "添加 'git restore ' 到序列 (需要输入)", self._add_restore_to_sequence)
@@ -638,13 +639,21 @@ class MainWindow(QMainWindow):
                  widget.setEnabled(enabled)
 
         if self._repo_dependent_widgets and len(self._repo_dependent_widgets) > 0:
-            init_button = self._repo_dependent_widgets[0]
-            if isinstance(init_button, QPushButton) and init_button.text() == "Init":
-                 init_button.setEnabled(True)
+            init_button = None
+            for w in self._repo_dependent_widgets:
+                 if isinstance(w, QPushButton) and w.text() == "Init" and not w.isEnabled(): 
+                      init_button = w
+                      break
+            init_button = next((item.widget() for l in [
+                self.findChildren(QHBoxLayout, name='command_builder_layout_1'),
+                self.findChildren(QHBoxLayout, name='command_builder_layout_2'),
+                self.findChildren(QHBoxLayout, name='command_builder_layout_3')] 
+                for layout in l for item_index in range(layout.count()) for item in [layout.itemAt(item_index)] if item.widget() and isinstance(item.widget(), QPushButton) and item.widget().text() == "Init"), None)
 
 
-        if self.shortcut_manager:
-            self.shortcut_manager.set_shortcuts_enabled(enabled)
+            if init_button:
+                 init_button.setEnabled(True) 
+
 
         for action in self.findChildren(QAction):
             action_text = action.text()
@@ -1063,6 +1072,30 @@ class MainWindow(QMainWindow):
         elif ok and not commit_hash:
             self._show_information("操作取消", "提交哈希不能为空。")
 
+    def _add_rebase_to_sequence(self):
+        if not self._check_repo_and_warn(): return
+        rebase_target, ok = QInputDialog.getText(self, "变基 (Rebase)", "输入变基目标 (例如: main, HEAD~1, origin/feature):", QLineEdit.EchoMode.Normal)
+        if ok and rebase_target:
+            clean_target = rebase_target.strip()
+            if not clean_target:
+                 self._show_warning("操作取消", "变基目标不能为空。")
+                 return
+
+            confirmation_msg = f"确定要将当前分支变基到 '{clean_target}' 吗？\n\n将执行: git rebase {clean_target}\n\n变基是一个复杂的操作，可能需要手动解决冲突。请确保您理解其影响！"
+            reply = QMessageBox.question(self, "确认变基", confirmation_msg,
+                                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                                        QMessageBox.StandardButton.Cancel)
+
+            if reply == QMessageBox.StandardButton.Yes:
+                logging.info(f"请求变基到: {clean_target}")
+                self._add_command_to_sequence(f"git rebase {shlex.quote(clean_target)}")
+            else:
+                 self._show_information("操作取消", "变基操作已取消。")
+
+        elif ok and not rebase_target:
+            self._show_information("操作取消", "变基目标不能为空。")
+
+
     def _add_stash_save_to_sequence(self):
         if not self._check_repo_and_warn(): return
         stash_message, ok = QInputDialog.getText(self, "保存工作区 (Stash Save)", "输入 Stash 消息 (可选):", QLineEdit.EchoMode.Normal)
@@ -1154,16 +1187,31 @@ class MainWindow(QMainWindow):
             if widget:
                 widget.setEnabled(not busy and self.git_handler.is_valid_repo())
 
-        if self._repo_dependent_widgets and len(self._repo_dependent_widgets) > 0:
-            init_button = self._repo_dependent_widgets[0]
-            if isinstance(init_button, QPushButton) and init_button.text() == "Init":
-                 init_button.setEnabled(not busy)
+        # Ensure Init button remains enabled even when busy or repo invalid
+        init_button = None
+        # Search through layouts for the Init button
+        for layout in [
+            self.findChildren(QHBoxLayout, name='command_builder_layout_1'),
+            self.findChildren(QHBoxLayout, name='command_builder_layout_2'),
+            self.findChildren(QHBoxLayout, name='command_builder_layout_3')
+        ]:
+             if layout:
+                  for item_index in range(layout[0].count()):
+                       item = layout[0].itemAt(item_index)
+                       if item.widget() and isinstance(item.widget(), QPushButton) and item.widget().text() == "Init":
+                            init_button = item.widget()
+                            break
+             if init_button: break
+
+        if init_button:
+             init_button.setEnabled(not busy)
 
 
         for action in self.findChildren(QAction):
             action_text = action.text()
             if action_text in ["选择仓库(&O)...", "Git 全局配置(&G)...", "退出(&X)", "关于(&A)", "清空原始输出"]:
-                action.setEnabled(True)
+                action.setEnabled(True) # These actions should always be enabled
+
 
         if busy:
             if self.status_bar: self.status_bar.showMessage("⏳ 正在执行...", 0)
@@ -1178,6 +1226,21 @@ class MainWindow(QMainWindow):
         command_text = self.command_input.text().strip();
         if not command_text: return
         logging.info(f"用户从命令行输入: {command_text}"); prompt_color = QColor(Qt.GlobalColor.darkCyan)
+
+        if not self.git_handler.is_valid_repo():
+             try:
+                  command_parts = shlex.split(command_text)
+                  if command_parts and command_parts[0].lower() != 'git':
+                       self._show_warning("操作无效", "仓库无效，无法执行非 git 命令。");
+                       self._append_output(f"❌ 仓库无效，无法执行命令: {command_text}", QColor("red"))
+                       return
+                  if command_parts and command_parts[0].lower() == 'git' and (len(command_parts) < 2 or command_parts[1].lower() != 'init'):
+                       self._show_warning("操作无效", "仓库无效，只能执行 'git init' 命令。");
+                       self._append_output(f"❌ 仓库无效，只能执行 'git init': {command_text}", QColor("red"))
+                       return
+             except ValueError:
+                  pass
+
 
         try: command_parts = shlex.split(command_text)
         except ValueError as e:
@@ -1220,20 +1283,19 @@ class MainWindow(QMainWindow):
              logging.warning(f"快捷键 '{name}' 导致命令列表为空。")
              return
 
-        allow_execution = True
-        if commands and commands[0].strip().lower().startswith("git init"):
-             pass
-        elif not self.git_handler.is_valid_repo():
+        # Check if the *first* command is 'git init' and allow it even if repo is invalid
+        is_init_shortcut = commands and commands[0].strip().lower() == "git init"
+
+        if not is_init_shortcut and not self.git_handler.is_valid_repo():
              self._show_warning(f"无法执行快捷键 '{name}'", "仓库无效，无法执行除 'git init' 以外的命令。")
-             allow_execution = False
+             return
 
 
-        if allow_execution:
-             self.current_command_sequence = commands
-             self._update_sequence_display()
+        self.current_command_sequence = commands
+        self._update_sequence_display()
 
-             logging.info(f"准备执行快捷键 '{name}' 的命令列表: {commands}")
-             self._run_command_list_sequentially(commands)
+        logging.info(f"准备执行快捷键 '{name}' 的命令列表: {commands}")
+        self._run_command_list_sequentially(commands)
 
 
     @pyqtSlot()
@@ -1710,6 +1772,7 @@ v1.8 - 增加提交详情显示和提交历史记录
 v1.9 - 增加远程仓库列表功能
 v1.10 - 增加全局配置保存和加载功能
 v1.11 - 增加更多命令和参数按钮，优化参数添加提示/校验，增强输入校验/警告
+v1.12 - 添加 rebase 命令构建块
 
 本项目是学习 Qt6 和 Git 命令交互的实践项目
 作者: GitHub @424635328
@@ -1727,4 +1790,3 @@ date: 2025-04-22
 
         logging.info("应用程序正在关闭。")
         event.accept()
-        
