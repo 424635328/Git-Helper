@@ -239,9 +239,9 @@ _查看仓库状态示例_
 <table>
   <tbody>
     <tr>
-      <td align="center" valign="top" width="1.28%">
+      <td valign="top" width="14.28%">
         <a href="https://github.com/424635328">
-          <img src="https://avatars.githubusercontent.com/u/133365865?v=4?s=80" style="width: 100%; height: auto;" alt="424635328"/>
+          <img src="https://avatars.githubusercontent.com/u/133365865?v=4?s=80" width="60px;" alt="424635328"/>
         </a>
       </td>
       <!-- 如果还有其他贡献者，他们的条目会放在这里 -->
