@@ -159,7 +159,7 @@ class MainWindow(QMainWindow):
                 if stderr: self._append_output(f"stderr:\n{stderr.strip()}", QColor("red"))
 
                 if return_code == 0:
-                    self._append_output(f"✅ 成功: '{display_cmd}'", QColor("darkGreen"))
+                    self._append_output(f"✅ 成功: '{display_cmd}'", QColor("Green"))
                     QTimer.singleShot(10, lambda idx=index + 1: execute_next(idx))
                 else:
                     err_msg = f"❌ 失败 (RC: {return_code}) '{display_cmd}'，执行中止。"

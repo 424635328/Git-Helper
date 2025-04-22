@@ -1,224 +1,183 @@
-/* styles/modern_dark_theme.qss */
-
-/* 全局样式 */
+/* General Styles */
 QMainWindow, QWidget {
-    background-color: #1e1e1e; /* 更深的背景，类似主流IDE风格 */
-    color: #dddddd; /* 更亮的文字，对比度适中 */
+    background-color: #1e1e1e; /* Dark background */
+    color: #cccccc; /* Light gray text */
+    font-family: "Segoe UI", "Arial", sans-serif; /* Prefer common system fonts */
     font-size: 10pt;
-    font-family: "Segoe UI", "Helvetica Neue", sans-serif, "Microsoft YaHei"; /* 添加微软雅黑支持中文 */
 }
 
-/* 容器和面板样式 */
-QFrame, QWidget#centralWidget { /* centralWidget 是QMainWindow的中心widget的默认objectName */
-    background-color: #1e1e1e;
+QLabel {
+    color: #cccccc; /* Ensure label text is readable */
 }
 
-QGroupBox {
-    margin-top: 1ex;
-    border: 1px solid #3a3a3a;
-    border-radius: 4px;
-    padding: 10px;
-    padding-top: 15px;
-}
-
-QGroupBox::title {
-    subcontrol-origin: margin;
-    subcontrol-position: top left; /* Position at top left */
-    padding: 0 3px;
-    color: #aaaaaa; /* GroupBox 标题颜色 */
-    left: 7px; /* 标题左侧偏移 */
-}
-
-
-/* 按钮样式 */
+/* Buttons */
 QPushButton {
-    background-color: #3a3a3a; /* 按钮深灰色背景 */
-    color: #dddddd; /* 按钮文字颜色 */
-    border: 1px solid #5a5a5a; /* 按钮边框 */
-    border-radius: 4px; /* 圆角 */
-    padding: 6px 12px; /* 内边距 */
-    min-width: 80px;
-    outline: none; /* 去除聚焦时的轮廓 */
+    background-color: #333333; /* Dark gray button background */
+    color: #cccccc; /* Light text color */
+    border: 1px solid #555555; /* Subtle dark border */
+    padding: 5px 10px; /* Padding around text */
+    border-radius: 3px; /* Slightly rounded corners */
+    outline: none; /* Remove default focus outline */
 }
 
 QPushButton:hover {
-    background-color: #4a4a4a; /* 鼠标悬停时的背景 */
-    border-color: #777777;
+    border-color: #00ffff; /* Neon blue border on hover */
+    color: #00ffff; /* Neon blue text on hover */
 }
 
 QPushButton:pressed {
-    background-color: #2a2a2a; /* 鼠标按下时的背景 */
+    background-color: #00ffff; /* Fill with neon blue on press */
+    color: #1e1e1e; /* Dark text on neon background */
+    border-color: #00ffff;
 }
 
 QPushButton:disabled {
-    background-color: #2a2a2a;
-    color: #888888;
-    border-color: #4a4a4a;
+    background-color: #282828; /* Darker background when disabled */
+    color: #888888; /* Faded text color */
+    border-color: #444444;
 }
 
-/* 强调按钮 (例如主要操作) */
-QPushButton#primaryButton { /* 假设给重要按钮设置objectName为primaryButton */
-    background-color: #007acc; /* 蓝色强调色 */
-    border-color: #005f9f;
-    color: #ffffff; /* 白色文字 */
+/* Line Edits and Text Edits */
+QLineEdit, QTextEdit {
+    background-color: #282828; /* Darker input background */
+    color: #cccccc; /* Light text color */
+    border: 1px solid #555555; /* Subtle dark border */
+    padding: 4px; /* Padding inside the input box */
+    border-radius: 3px; /* Slightly rounded corners */
+    selection-background-color: #ff00ff; /* Neon pink selection background */
+    selection-color: #1e1e1e; /* Dark text on selection */
+    outline: none; /* Remove default focus outline */
 }
 
-QPushButton#primaryButton:hover {
-    background-color: #0088e4;
-    border-color: #006abd;
+QLineEdit:focus, QTextEdit:focus {
+    border-color: #ff00ff; /* Neon pink border on focus */
 }
 
-QPushButton#primaryButton:pressed {
-    background-color: #0060a5;
-    border-color: #004c82;
-}
-
-
-/* 输入框和文本区域样式 */
-QLineEdit, QTextEdit, QPlainTextEdit {
-    background-color: #2a2a2a; /* 输入框深色背景 */
-    color: #dddddd; /* 输入框文字颜色 */
-    border: 1px solid #4a4a4a;
-    border-radius: 4px;
-    padding: 4px;
-    selection-background-color: #005f9f; /* 选中文字背景 */
-    selection-color: #ffffff; /* 选中文字颜色 */
+/* List, Tree, and Table Views */
+QListWidget, QTreeView, QTableWidget {
+    background-color: #1e1e1e; /* Dark background */
+    color: #cccccc; /* Light text color */
+    border: 1px solid #333333; /* Darker border for view containers */
+    selection-background-color: #00ffff; /* Neon blue selection background */
+    selection-color: #1e1e1e; /* Dark text on selection */
+    alternate-background-color: #282828; /* Slightly different row background */
     outline: none;
 }
 
-QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {
-    border-color: #007acc; /* 聚焦时边框颜色 */
+QHeaderView::section {
+    background-color: #333333; /* Dark header background */
+    color: #cccccc; /* Light header text */
+    padding: 4px;
+    border: 1px solid #1e1e1e; /* Dark border for separation */
+    border-right-color: #333333; /* Avoid double border */
+    border-bottom-color: #333333;
 }
 
-/* 标签样式 */
-QLabel {
-    color: #dddddd; /* 标签文字颜色 */
+QTreeView::branch {
+    /* No specific styling for branches for simplicity, inherits view styles */
 }
 
-/* 菜单栏样式 */
-QMenuBar {
+/* Tab Widget */
+QTabWidget::pane { /* The content frame */
+    border: 1px solid #333333;
     background-color: #1e1e1e;
-    color: #dddddd;
-    border-bottom: 1px solid #3a3a3a; /* 菜单栏底部边框 */
 }
 
-QMenuBar::item {
+QTabWidget::tab-bar {
+    left: 5px; /* Offset the tab bar */
+}
+
+QTabBar::tab {
+    background: #282828; /* Dark tab background */
+    border: 1px solid #333333;
+    border-bottom-color: #1e1e1e; /* Match pane border for continuity */
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    min-width: 8ex; /* Minimum width for tabs */
     padding: 5px 10px;
-    background: transparent;
+    color: #cccccc;
 }
 
-QMenuBar::item:selected {
-    background-color: #3a3a3a;
+QTabBar::tab:selected {
+    background: #1e1e1e; /* Background color matches pane when selected */
+    border-bottom-color: #1e1e1e; /* Hide bottom border when selected */
+    border-color: #00ffff; /* Neon blue border for selected tab */
+    font-weight: bold;
 }
 
-QMenu {
-    background-color: #2a2a2a;
-    color: #dddddd;
-    border: 1px solid #4a4a4a;
-    border-radius: 4px; /* 菜单圆角 */
-    padding: 5px; /* 菜单内边距 */
+QTabBar::tab:hover:!selected {
+    color: #00ffff; /* Neon blue text on hover for non-selected */
 }
 
-QMenu::item {
-    padding: 5px 25px 5px 20px; /* 左侧留白放图标 */
+QTabBar::tab:!selected {
+    margin-top: 2px; /* Slightly lower non-selected tabs */
 }
 
-QMenu::item:selected {
-    background-color: #3a3a3a;
+
+/* Status Bar */
+QStatusBar {
+    background-color: #333333; /* Dark status bar background */
+    color: #cccccc; /* Light text */
+    border-top: 1px solid #ff00ff; /* Neon pink top border */
+    padding: 2px;
 }
 
-QMenu::separator {
-    height: 1px;
-    background: #4a4a4a;
-    margin: 5px 5px; /* 分隔符上下留白 */
+QStatusBar QLabel {
+    color: #cccccc; /* Ensure label text color within status bar */
 }
 
-/* 工具栏样式 */
+/* Tool Bar */
 QToolBar {
-    background-color: #2a2a2a;
+    background-color: #333333; /* Dark toolbar background */
     border: none;
-    padding: 5px;
-    spacing: 5px; /* 工具按钮之间的间距 */
+    padding: 0;
+    spacing: 5px; /* Space between toolbar items */
 }
 
-QToolButton {
-    padding: 5px;
-    margin: 0; /* 重置外边距 */
+QToolButton { /* Items in a QToolBar are QToolButtons */
     background: transparent;
-    border: 1px solid transparent;
-    border-radius: 4px;
+    border: 1px solid transparent; /* Transparent border for spacing/hover effect */
+    padding: 4px;
+    color: #cccccc; /* Text color if any */
+    border-radius: 3px;
 }
 
 QToolButton:hover {
-    background-color: #3a3a3a;
-    border-color: #4a4a4a;
+    border-color: #ff00ff; /* Neon pink border on hover */
+    color: #ff00ff; /* Neon pink color on hover */
 }
 
 QToolButton:pressed {
-    background-color: #1a1a1a;
-    border-color: #3a3a3a;
+    background-color: #ff00ff; /* Fill with neon pink on press */
+    color: #1e1e1e; /* Dark text on neon */
+    border-color: #ff00ff;
 }
 
-QToolButton:checked { /* 选中状态，例如toggle button */
-    background-color: #007acc;
-    border-color: #005f9f;
-    color: #ffffff;
+QToolButton:disabled {
+    color: #888888; /* Faded text color */
+    border-color: transparent;
 }
 
-QToolButton:checked:hover {
-    background-color: #0088e4;
-}
-
-
-/* 列表视图和树视图样式 */
-QListView, QTreeView, QTableView {
-    background-color: #2a2a2a;
-    color: #dddddd;
-    border: 1px solid #4a4a4a;
-    border-radius: 4px;
-    selection-background-color: #005f9f; /* 更柔和的选中背景 */
-    selection-color: #ffffff;
-    alternate-background-color: #3a3a3a; /* 交替行背景，增加可读性 */
-    gridline-color: #3a3a3a; /* 网格线颜色 */
-}
-
-QHeaderView::section {
-    background-color: #3a3a3a;
-    color: #dddddd;
-    padding: 6px;
-    border: 1px solid #4a4a4a;
-    border-bottom: none;
-    font-weight: bold; /* 表头文字加粗 */
-}
-
-QHeaderView::section:horizontal {
-    border-right: 1px solid #4a4a4a; /* 水平表头右侧边框 */
-}
-
-QHeaderView::section:vertical {
-    border-bottom: 1px solid #4a4a4a; /* 垂直表头底部边框 */
-}
-
-
-/* 滚动条样式 */
+/* Scroll Bars */
 QScrollBar:vertical {
-    border: none; /* 滚动条无边框 */
-    background: #2a2a2a;
-    width: 12px;
-    margin: 0;
+    border: 1px solid #282828;
+    background: #1e1e1e;
+    width: 10px;
+    margin: 0px;
 }
 
 QScrollBar::handle:vertical {
-    background: #5a5a5a; /* 滑块颜色 */
-    min-height: 30px; /* 滑块最小高度 */
-    border-radius: 6px; /* 更圆的滑块 */
-    margin: 2px 3px; /* 滑块与轨道留白 */
+    background: #555555; /* Dark gray handle */
+    min-height: 20px;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #00ffff; /* Neon blue handle on hover */
 }
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-    border: none;
-    background: none;
-    height: 0px;
+    height: 0px; /* Remove default add/sub buttons */
 }
 
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
@@ -226,104 +185,49 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
 }
 
 QScrollBar:horizontal {
-    border: none;
-    background: #2a2a2a;
-    height: 12px;
-    margin: 0;
+    border: 1px solid #282828;
+    background: #1e1e1e;
+    height: 10px;
+    margin: 0px;
 }
 
 QScrollBar::handle:horizontal {
-    background: #5a5a5a;
-    min-width: 30px;
-    border-radius: 6px;
-    margin: 3px 2px;
+    background: #555555; /* Dark gray handle */
+    min-width: 20px;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background: #ff00ff; /* Neon pink handle on hover */
 }
 
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-    border: none;
-    background: none;
-    width: 0px;
+    width: 0px; /* Remove default add/sub buttons */
 }
 
 QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
     background: none;
 }
 
-
-/* 状态栏样式 */
-QStatusBar {
-    background-color: #2a2a2a;
-    color: #aaaaaa; /* 状态栏文字颜色稍暗 */
-    border-top: 1px solid #3a3a3a;
+/* Context Menu (optional) */
+QMenu {
+    background-color: #282828; /* Dark background */
+    color: #cccccc; /* Light text */
+    border: 1px solid #555555; /* Subtle border */
 }
 
-QStatusBar QLabel {
-    color: #aaaaaa; /* 状态栏中的QLabel也应用这个颜色 */
-    padding: 0 5px; /* 状态栏文字左右内边距 */
+QMenu::item {
+    padding: 5px 20px 5px 5px; /* Adjust padding */
 }
 
-/* 分割线样式 */
-QSplitter::handle {
-    background-color: #3a3a3a;
-    margin: 1px;
+QMenu::item:selected {
+    background-color: #333333; /* Darker background on hover */
+    border-left: 2px solid #00ffff; /* Neon left border on hover */
+    margin-left: -2px; /* Compensate for border width */
 }
 
-QSplitter::handle:horizontal {
-    width: 5px;
-}
-
-QSplitter::handle:vertical {
-    height: 5px;
-}
-
-QSplitter::handle:hover {
-    background-color: #007acc; /* 悬停时高亮分割线 */
-}
-
-/* Tabs (标签页) 样式 */
-QTabWidget::pane { /* The tab widget frame */
-    border: 1px solid #3a3a3a;
-    background-color: #1e1e1e;
-    margin: 1px;
-}
-
-QTabWidget::tab-bar {
-    left: 5px; /* move to the right by 5px */
-}
-
-QTabBar::tab {
-    background: #2a2a2a;
-    border: 1px solid #3a3a3a;
-    border-bottom-color: #1e1e1e; /* Attach tab to pane */
-    border-top-left-radius: 4px;
-    border-top-right-radius: 4px;
-    min-width: 8ex;
-    padding: 5px 10px;
-    margin-right: 2px; /* Spacing between tabs */
-    color: #aaaaaa; /* 非选中Tab文字颜色 */
-}
-
-QTabBar::tab:selected, QTabBar::tab:hover {
-    background: #1e1e1e; /* 选中或悬停Tab背景 */
-    border-bottom-color: #1e1e1e; /* Attach to pane */
-    color: #dddddd; /* 选中Tab文字颜色 */
-}
-
-QTabBar::tab:selected {
-    border-color: #3a3a3a;
-    border-bottom-color: #1e1e1e; /* Override selected border */
-}
-
-QTabBar::tab:!selected {
-    margin-top: 2px; /* Make non-selected tabs look lower */
-}
-
-QTabBar::close-button {
-    image: url(close_tab.png); /* 如果有关闭按钮图标 */
-    subcontrol-origin: padding;
-    subcontrol-position: center right;
-}
-
-QTabBar::close-button:hover {
-    image: url(close_tab_hover.png);
+QMenu::separator {
+    height: 1px;
+    background: #555555; /* Separator line */
+    margin: 4px 10px;
 }
