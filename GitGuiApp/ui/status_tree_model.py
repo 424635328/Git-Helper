@@ -181,13 +181,10 @@ class StatusTreeModel(QStandardItemModel):
                         except Exception as decode_err:
                              logging.error(f"解码带引号路径 '{file_path}' 时出错: {decode_err}")
 
-                    # === FIX: 计算 tooltip 移动到这里，确保在任何分支使用前已定义 ===
                     tooltip = f"状态: {status_codes}, 路径: {file_path}"
                     if original_path: tooltip += f", 原路径: {original_path}"
-                    # === END FIX ===
 
 
-                    # --- 根据状态码确定区段、图标和颜色 ---
                     items_to_add = [] # 列表来存储 (status_code_disp, display_path_disp, file_path_data, icon_char, color_apply, tooltip_apply) 元组
 
                     # 未跟踪的文件 (??)
@@ -258,23 +255,18 @@ class StatusTreeModel(QStandardItemModel):
                          item_path_obj.setData(file_path_data, Qt.ItemDataRole.UserRole + 1)
                          item_status_obj.setEditable(False)
                          item_path_obj.setEditable(False)
-
-                         # Determine the target root based on the status code display or icon_char_apply
-                         # For split cases (MM, MT, etc.), we need to differentiate which root to add to
                          target_root = None
                          if status_code_disp == '??':
                              target_root = self.untracked_root
                          elif status_code_disp[0] == 'U' or status_code_disp[1] == 'U':
                              target_root = self.unmerged_root
-                         # For non-conflict cases, check the character that determined the section
-                         elif icon_char_apply == status_code_disp[0] and status_code_disp[0] != ' ': # Staged part (including split staged part like 'M' in 'MM')
+                         elif icon_char_apply == status_code_disp[0] and status_code_disp[0] != ' ': 
                               target_root = self.staged_root
-                         elif icon_char_apply == status_code_disp[1] and status_code_disp[1] != ' ': # Unstaged part (including split unstaged part like 'M' in 'MM')
+                         elif icon_char_apply == status_code_disp[1] and status_code_disp[1] != ' ':
                              target_root = self.unstage_root
-                         # Fallback if logic missed something
                          if not target_root:
                              logging.warning(f"无法确定状态码 '{status_code_disp}' 的目标区段。")
-                             continue # Skip adding this item if root couldn't be determined
+                             continue 
 
 
                          target_root.appendRow([item_status_obj, item_path_obj])
