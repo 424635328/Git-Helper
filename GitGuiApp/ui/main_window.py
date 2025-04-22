@@ -50,6 +50,18 @@ class MainWindow(QMainWindow):
         self.commit_details_textedit = None
         self._output_tab_index = -1 # 新增：存储输出标签页的索引
 
+        # 定义黑暗主题下的颜色
+        self._output_colors = {
+            'default': QColor("#cccccc"),  # 浅灰色用于默认文本
+            'prompt': QColor("#55aaff"),   # 蓝色用于命令提示符 '$'
+            'command': QColor("#aaffaa"),  # 绿色用于命令本身
+            'stdout': QColor("#cccccc"),   # 浅灰色用于标准输出
+            'stderr': QColor("#ff6666"),   # 红色用于标准错误
+            'success': QColor("#66ff66"),  # 亮绿色用于成功消息
+            'info': QColor("#55aaff"),     # 蓝色用于信息消息
+            'separator': QColor("#888888") # 暗灰色用于分隔符
+        }
+
         self._init_ui()
         self.shortcut_manager.load_and_register_shortcuts()
         self._update_repo_status()
@@ -292,6 +304,12 @@ class MainWindow(QMainWindow):
         self.output_display = QTextEdit()
         self.output_display.setReadOnly(True)
         self.output_display.setFontFamily("Courier New")
+        # 优化输出视图字体大小和背景
+        output_font = QFont("Courier New", 10) # 调整字体大小
+        self.output_display.setFont(output_font)
+        # 根据黑暗主题设置背景和默认文本颜色
+        self.output_display.setStyleSheet("background-color: #1e1e1e; color: #cccccc;") # 暗色背景，浅灰文本
+
         self.output_display.setPlaceholderText("Git 命令和命令行输出将显示在此处...")
         output_tab_layout.addWidget(self.output_display, 1)
 
@@ -312,7 +330,14 @@ class MainWindow(QMainWindow):
             QLineEdit::placeholder { color: #a0a0a0; }
             QLineEdit:disabled { background-color: #f0f0f0; color: #a0a0a0; }
         """
-        self.command_input.setStyleSheet(command_input_style)
+        # 考虑在黑暗主题下调整输入框样式
+        # command_input_style_dark = """
+        #     QLineEdit { background-color: #252526; border: 1px solid #3e3e42; border-radius: 2px; padding: 4px 6px; color: #cccccc; }
+        #     QLineEdit:focus { border: 1px solid #007acc; }
+        #     QLineEdit::placeholder { color: #a0a0a0; }
+        #     QLineEdit:disabled { background-color: #3e3e42; color: #888888; }
+        # """
+        self.command_input.setStyleSheet(command_input_style) # 可以根据主题切换样式
         self.command_input.returnPressed.connect(self._execute_command_from_input)
         self.command_buttons['command_input'] = self.command_input
 
@@ -565,7 +590,7 @@ class MainWindow(QMainWindow):
             if unstage_all_btn: unstage_all_btn.setEnabled(self.status_tree_model.staged_root.rowCount() > 0)
         else:
             logging.error(f"获取状态失败: RC={return_code}, 错误: {stderr}")
-            self._append_output(f"❌ 获取 Git 状态失败:\n{stderr}", QColor("red"))
+            self._append_output(f"❌ 获取 Git 状态失败:\n{stderr}", self._output_colors['stderr']) # 使用定义的错误颜色
             self.status_tree_model.clear_status()
             if stage_all_btn: stage_all_btn.setEnabled(False)
             if unstage_all_btn: unstage_all_btn.setEnabled(False)
@@ -631,7 +656,7 @@ class MainWindow(QMainWindow):
 
         elif is_valid:
             logging.error(f"获取分支失败: RC={return_code}, 错误: {stderr}")
-            self._append_output(f"❌ 获取分支列表失败:\n{stderr}", QColor("red"))
+            self._append_output(f"❌ 获取分支列表失败:\n{stderr}", self._output_colors['stderr']) # 使用定义的错误颜色
         elif not is_valid:
              logging.warning("仓库在分支刷新前变得无效。")
 
@@ -709,7 +734,7 @@ class MainWindow(QMainWindow):
             logging.info(f"日志表格已填充 {valid_rows} 个有效条目。")
         else:
             logging.error(f"获取日志失败: RC={return_code}, 错误: {stderr}")
-            self._append_output(f"❌ 获取提交历史失败:\n{stderr}", QColor("red"))
+            self._append_output(f"❌ 获取提交历史失败:\n{stderr}", self._output_colors['stderr']) # 使用定义的错误颜色
         if self.status_bar:
             current_message = self.status_bar.currentMessage()
             if "正在刷新" in current_message: pass # 如果仍然存在刷新消息则保持
@@ -836,17 +861,17 @@ class MainWindow(QMainWindow):
         # --- 新增：在执行前切换到原始输出标签页 ---
         if self.main_tab_widget and self._output_tab_index != -1:
              self.main_tab_widget.setCurrentIndex(self._output_tab_index)
-             # 可选: 清空之前的输出或添加分隔符
+             # Optional: Clear previous output or add a separator
              if self.output_display:
-                  self._append_output("\n--- 开始执行新的命令序列 ---", QColor("darkCyan"))
+                  self._append_output("\n--- 开始执行新的命令序列 ---", self._output_colors['separator']) # 使用分隔符颜色
                   self.output_display.ensureCursorVisible()
-             QApplication.processEvents() # 确保标签页更改和潜在的清空可见
+             QApplication.processEvents() # Ensure tab change and potential clear are visible
 
         self._set_ui_busy(True)
 
         def execute_next(index):
             if index >= len(command_strings):
-                self._append_output("\n✅ --- 所有命令执行完毕 ---", QColor("green"))
+                self._append_output("\n✅ --- 所有命令执行完毕 ---", self._output_colors['success']) # 使用成功颜色
                 # 在成功执行后清空序列构建器
                 self._clear_sequence()
                 self._set_ui_busy(False)
@@ -868,8 +893,8 @@ class MainWindow(QMainWindow):
                 logging.debug(f"解析结果: {command_parts}")
             except ValueError as e:
                 err_msg = f"❌ 解析错误 '{cmd_str}': {e}"
-                self._append_output(err_msg, QColor("red"))
-                self._append_output("--- 执行中止 ---", QColor("red"))
+                self._append_output(err_msg, self._output_colors['stderr']) # 使用错误颜色
+                self._append_output("--- 执行中止 ---", self._output_colors['stderr']) # 使用错误颜色
                 logging.error(err_msg)
                 self._set_ui_busy(False)
                 return
@@ -880,20 +905,27 @@ class MainWindow(QMainWindow):
                 return
 
             display_cmd = ' '.join(shlex.quote(part) for part in command_parts)
-            self._append_output(f"\n$ {display_cmd}", QColor("blue"))
+            # 格式化显示命令输入行: '$ 命令参数'
+            self._append_output(f"\n", self._output_colors['default']) # 新行
+            self._append_output("$ ", self._output_colors['prompt'])  # 提示符
+            self._append_output(display_cmd, self._output_colors['command']) # 命令本身
 
             @pyqtSlot(int, str, str)
             def on_command_finished(return_code, stdout, stderr):
-                if stdout: self._append_output(f"stdout:\n{stdout.strip()}")
-                if stderr: self._append_output(f"stderr:\n{stderr.strip()}", QColor("red"))
+                if stdout:
+                    self._append_output(f"stdout:\n", self._output_colors['info']) # 提示 'stdout:'
+                    self._append_output(stdout.strip(), self._output_colors['stdout']) # 标准输出内容
+                if stderr:
+                    self._append_output(f"stderr:\n", self._output_colors['info']) # 提示 'stderr:'
+                    self._append_output(stderr.strip(), self._output_colors['stderr']) # 标准错误内容
 
                 if return_code == 0:
-                    self._append_output(f"✅ 成功: '{display_cmd}'", QColor("darkGreen"))
-                    QTimer.singleShot(10, lambda idx=index + 1: execute_next(idx)) # 使用小延迟
+                    self._append_output(f"✅ 成功 (返回码: {return_code}): '{display_cmd}'", self._output_colors['success']) # 使用成功颜色
+                    QTimer.singleShot(10, lambda idx=index + 1: execute_next(idx)) # Use small delay
                 else:
-                    err_msg = f"❌ 失败 (RC: {return_code}) '{display_cmd}'，执行中止。"
+                    err_msg = f"❌ 失败 (返回码: {return_code}): '{display_cmd}'，执行中止。"
                     logging.error(f"命令执行失败! 命令: '{display_cmd}', 返回码: {return_code}, 标准错误: {stderr.strip()}")
-                    self._append_output(err_msg, QColor("red"))
+                    self._append_output(err_msg, self._output_colors['stderr']) # 使用错误颜色
                     self._set_ui_busy(False)
 
             @pyqtSlot(str)
@@ -953,13 +985,16 @@ class MainWindow(QMainWindow):
         fmt = QTextCharFormat(original_format) # 从当前格式开始
         if color:
              fmt.setForeground(color)
-        # 否则: 使用原始格式的颜色
+        else:
+             # 如果没有指定颜色，使用默认文本颜色
+             fmt.setForeground(self._output_colors['default'])
+
 
         self.output_display.setCurrentCharFormat(fmt)
-        clean_text = text.rstrip('\n') # 如果存在尾随换行符则删除，我们自己添加一个
-        self.output_display.insertPlainText(clean_text + "\n")
+        # 保持原文本的换行符，QTextEdit 会自动处理
+        self.output_display.insertPlainText(text)
 
-        # 恢复原始格式以用于后续文本
+        # Restore original format for subsequent text (important after inserting text with a specific format)
         self.output_display.setCurrentCharFormat(original_format)
         self.output_display.ensureCursorVisible()
 
@@ -971,17 +1006,20 @@ class MainWindow(QMainWindow):
         if not self.command_input: return
         command_text = self.command_input.text().strip();
         if not command_text: return
-        logging.info(f"用户从命令行输入: {command_text}"); prompt_color = QColor(Qt.GlobalColor.darkCyan)
+        logging.info(f"用户从命令行输入: {command_text}");
         try:
-            # 解析并重新引用以提高显示健壮性
+            # Parse and re-quote for display robustness
             command_parts = shlex.split(command_text)
             display_cmd = ' '.join(shlex.quote(part) for part in command_parts)
         except ValueError:
-            # 如果 shlex 失败则回退 (对于简单输入不应该发生，但要做好防御)
+            # Fallback if shlex fails (shouldn't happen with simple input but defensive)
             display_cmd = command_text
 
-        # 在清空输入之前将命令追加到输出
-        self._append_output(f"\n$ {display_cmd}", prompt_color)
+        # 格式化显示命令输入行到输出视图: '$ 命令参数'
+        self._append_output(f"\n", self._output_colors['default']) # 新行
+        self._append_output("$ ", self._output_colors['prompt'])  # 提示符
+        self._append_output(display_cmd, self._output_colors['command']) # 命令本身
+
         self.command_input.clear()
 
         # 通过序列执行器执行命令
@@ -1003,9 +1041,9 @@ class MainWindow(QMainWindow):
             self.current_command_sequence = [line.strip() for line in sequence_str.strip().splitlines() if line.strip()]
             self._update_sequence_display()
             if self.status_bar: self.status_bar.showMessage(f"快捷键 '{shortcut_name}' 已加载到序列构建器", 3000)
-            logging.info(f"快捷键 '{shortcut_name}' 已加载到构建器。")
+            logging.info(f"Shortcut '{shortcut_name}' loaded into builder.")
         else:
-            logging.warning(f"找不到快捷键 '{shortcut_name}' 的序列数据。")
+            logging.warning(f"Could not find sequence data for shortcut '{shortcut_name}'.")
             QMessageBox.warning(self, "加载失败", f"无法加载快捷键 '{shortcut_name}' 的命令序列。")
 
 
@@ -1018,7 +1056,7 @@ class MainWindow(QMainWindow):
 
         if not commands:
              QMessageBox.warning(self, "快捷键无效", f"快捷键 '{name}' 解析后命令序列为空。")
-             logging.warning(f"快捷键 '{name}' 导致命令列表为空。")
+             logging.warning(f"Shortcut '{name}' resulted in empty list.")
              return
 
         # 在执行之前可视化地加载到构建器 (可选但有帮助)
@@ -1507,18 +1545,3 @@ class MainWindow(QMainWindow):
         logging.info("应用程序正在关闭。")
         # The background process might still finish, but the app will close.
         event.accept()
-
-# Example main execution block
-if __name__ == '__main__':
-    # Set logging level based on need, e.g., DEBUG for development
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s')
-    logging.info("应用程序启动...")
-    app = QApplication(sys.argv)
-
-    # Set a consistent font for the whole application (optional)
-    # app.setFont(QFont("Segoe UI", 9)) # Example for Windows
-    # app.setFont(QFont("Sans Serif", 9)) # Example generic font
-
-    mainWin = MainWindow()
-    mainWin.show()
-    sys.exit(app.exec())
