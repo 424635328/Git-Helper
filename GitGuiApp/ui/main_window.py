@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QStatusBar, QToolBar, QMenu, QTreeView, QTabWidget, QHeaderView, QTableWidget, QTableWidgetItem,
     QSpacerItem, QFrame, QStyle
 )
-
+from PyQt6.QtWebEn
 
 from PyQt6.QtGui import QAction, QKeySequence, QColor, QTextCursor, QIcon, QFont, QStandardItemModel, QDesktopServices, QTextCharFormat
 from PyQt6.QtCore import Qt, pyqtSlot, QSize, QTimer, QModelIndex, QUrl, QPoint, QItemSelection
@@ -642,14 +642,19 @@ class MainWindow(QMainWindow):
                  widget.setEnabled(enabled)
 
         init_button = None
+        # Iterate through all QHBoxLayouts found
         for layout in self.findChildren(QHBoxLayout):
              if layout:
+                  # Iterate through items in the layout
                   for item_index in range(layout.count()):
                        item = layout.itemAt(item_index)
-                       if item.widget() and isinstance(item.widget(), QPushButton) and item.widget().text() == "Init":
+                       # Check if the item contains a widget and it's a QPushButton
+                       if item and item.widget() and isinstance(item.widget(), QPushButton) and item.widget().text() == "Init":
                             init_button = item.widget()
-                            break
-             if init_button: break
+                            break # Found the Init button, can stop searching this layout
+                  if init_button:
+                       break # Found the Init button in some layout, can stop searching all layouts
+
 
         if init_button:
              init_button.setEnabled(True)
@@ -689,11 +694,28 @@ class MainWindow(QMainWindow):
 
             summary_parts = []
             for name, urls in remotes.items():
-                if urls['fetch_url'] == urls['push_url'] and urls['fetch_url']:
-                    summary_parts.append(f"{name}: {urls['fetch_url']}")
+                url_text = "N/A"
+                # Prioritize push URL for display if different, otherwise fetch URL
+                if urls['push_url']:
+                    url_text = urls['push_url']
+                elif urls['fetch_url']:
+                    url_text = urls['fetch_url']
+
+                if url_text != "N/A":
+                     # Attempt to parse potential GitHub/GitLab URL for concise display
+                     match = re.search(r'(github\.com|gitlab\.com|bitbucket\.org)[:/](.+?)/(.+?)(\.git)?$', url_text)
+                     if match:
+                         domain = match.group(1)
+                         owner = match.group(2)
+                         repo = match.group(3)
+                         display_url = f"{domain}/{owner}/{repo}"
+                     else:
+                         display_url = url_text # Fallback to full URL if parsing fails
+
+                     summary_parts.append(f"{name}: {display_url}")
                 else:
-                    if urls['fetch_url']: summary_parts.append(f"{name}(f): {urls['fetch_url']}")
-                    if urls['push_url']: summary_parts.append(f"{name}(p): {urls['push_url']}")
+                    summary_parts.append(f"{name}: (无URL)")
+
 
             self._remote_info = " | Remotes: " + ", ".join(summary_parts) if summary_parts else " | Remotes: (none)"
             logging.debug(f"远程信息总结: {self._remote_info}")
@@ -1364,10 +1386,10 @@ class MainWindow(QMainWindow):
              if layout:
                   for item_index in range(layout.count()):
                        item = layout.itemAt(item_index)
-                       if item.widget() and isinstance(item.widget(), QPushButton) and item.widget().text() == "Init":
+                       if item and item.widget() and isinstance(item.widget(), QPushButton) and item.widget().text() == "Init":
                             init_button = item.widget()
                             break
-             if init_button: break
+                  if init_button: break
 
         if init_button:
              init_button.setEnabled(not busy)
@@ -1441,6 +1463,7 @@ class MainWindow(QMainWindow):
         command_strings = [line.strip() for line in sequence_str.strip().splitlines() if line.strip()]
         cleaned_commands = []
         is_repo_valid = self.git_handler.is_valid_repo() if self.git_handler else False
+
 
         if not command_strings:
              self._show_warning("快捷键无效", f"快捷键 '{name}' 解析后命令序列为空。")
@@ -1582,6 +1605,7 @@ class MainWindow(QMainWindow):
             resolve_action.triggered.connect(lambda: self._resolve_files(files_to_resolve_unmerged))
             menu.addAction(resolve_action)
             added_action = True
+
 
         if added_action: menu.exec(self.status_tree_view.viewport().mapToGlobal(pos))
         else: logging.debug("No applicable actions for selected status items.")
@@ -1967,33 +1991,163 @@ class MainWindow(QMainWindow):
         except:
              version = "N/A"
         about_text = f"""
-**简易 Git GUI**
+<!DOCTYPE html>
+        <html lang="zh-CN">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>简易 Git GUI 信息</title>
+            <style>
+                body {
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    line-height: 1.6;
+                    margin: 20px;
+                    background-color: #f4f4f4;
+                    color: #333;
+                }
+                .container {
+                    max-width: 800px;
+                    margin: auto;
+                    background-color: #fff;
+                    padding: 30px;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+                    position: relative;
+                }
+                h1 { color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-bottom: 20px; }
+                h2 { color: #555; margin-top: 25px; margin-bottom: 15px; }
+                ul { list-style-type: disc; padding-left: 20px; }
+                li { margin-bottom: 8px; }
+                a { color: #007bff; text-decoration: none; }
+                a:hover { text-decoration: underline; }
+                .info-section { margin-top: 25px; padding-top: 15px; border-top: 1px dashed #ccc; font-size: 0.9em; color: #666; }
 
-版本: {version}
+                .copy-button {
+                    display: inline-block; /* Change from absolute if you don't want top-right positioning */
+                    margin-top: 15px; /* Add some space below the text */
+                    padding: 8px 15px;
+                    background-color: #28a745;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-size: 0.9em;
+                    transition: background-color 0.3s ease;
+                }
+                .copy-button:hover { background-color: #218838; }
+                .copy-button:active { background-color: #1e7e34; }
 
-这是一个简单的 Git GUI 工具，用于学习和执行 Git 命令。
+                 /* Simple feedback for WebEngine - more complex feedback needs JS within HTML */
+                 #copyFeedback {
+                     color: green;
+                     margin-left: 10px;
+                     opacity: 0;
+                     transition: opacity 0.3s ease;
+                 }
+                 #copyFeedback.visible {
+                     opacity: 1;
+                 }
 
-**开发日志:**
-v1.0 - 初始版本 (仓库选择, 状态, Diff, Log, 命令输入)
-v1.1 - 增加暂存/撤销暂存单个文件
-v1.2 - 增加创建/切换/删除分支
-v1.3 - 提交功能
-v1.4 - 增加 Pull/Push/Fetch 按钮
-v1.5 - 增加 Git 全局配置对话框
-v1.6 - 异步执行命令，优化UI响应
-v1.7 - 增加命令序列构建器和快捷键功能
-v1.8 - 增加提交详情显示和提交历史记录
-v1.9 - 增加远程仓库列表功能
-v1.10 - 增加全局配置保存和加载功能
-v1.11 - 增加更多命令和参数按钮，优化参数添加提示/校验，增强输入校验/警告
-v1.12 - 增加 rebase 命令构建块
-v1.13 - 修复 _update_ui_enable_state 中的 TypeError；实现参数添加到当前行；状态栏显示远程仓库信息；优化需要参数的命令构建对话框。
+            </style>
+             <!-- Required for QWebChannel communication -->
+            <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+        </head>
+        <body>
 
-本项目是学习 Qt6 和 Git 命令交互的实践项目
-作者: GitHub @424635328
-date: 2025-04-22
+        <div class="container" id="contentToCopy"> {/* Added ID for easy access */}
+            <h1>简易 Git GUI</h1>
+
+            <p>版本: {version}</p>
+
+            <p>这是一个简单的 Git GUI 工具，用于学习和执行 Git 命令。</p>
+
+            <h2>开发日志:</h2>
+            <ul>
+                <li>v1.0 - 初始版本 (仓库选择, 状态, Diff, Log, 命令输入)</li>
+                <li>v1.1 - 增加暂存/撤销暂存单个文件</li>
+                <li>v1.2 - 增加创建/切换/删除分支</li>
+                <li>v1.2 - 增加创建/切换/删除分支</li>
+                <li>v1.3 - 提交功能</li>
+                <li>v1.4 - 增加 Pull/Push/Fetch 按钮</li>
+                <li>v1.5 - 增加 Git 全局配置对话框</li>
+                <li>v1.6 - 异步执行命令，优化UI响应</li>
+                <li>v1.7 - 增加命令序列构建器和快捷键功能</li>
+                <li>v1.8 - 增加提交详情显示和提交历史记录</li>
+                <li>v1.9 - 增加远程仓库列表功能</li>
+                <li>v1.10 - 增加全局配置保存和加载功能</li>
+                <li>v1.11 - 增加更多命令和参数按钮，优化参数添加提示/校验，增强输入校验/警告</li>
+                <li>v1.12 - 增加 rebase 命令构建块</li>
+                <li>v1.13 - 修复 _update_ui_enable_state 中的 TypeError；实现参数添加到当前行；状态栏显示远程仓库信息；优化需要参数的命令构建对话框。</li>
+            </ul>
+
+            <div class="info-section">
+                <p>本项目是学习 Qt6 和 Git 命令交互的实践项目</p>
+                <p>作者: GitHub @424635328</p>
+                <p>项目地址: <a href="https://github.com/424635328/Git-Helper" target="_blank">https://github.com/424635328/Git-Helper</a></p>
+                <p>date: 2025-04-22</p>
+            </div>
+
+            {/* Button and Feedback within HTML */}
+            <button class="copy-button" onclick="copyAllContent()">复制全部文本</button>
+            <span id="copyFeedback">已复制!</span> {/* Simple feedback element */}
+
+        </div>
+
+        <script>
+            // Function called by the button click
+            function copyAllContent() {
+                const contentElement = document.getElementById('contentToCopy');
+                if (contentElement) {
+                    // Get the text content, ignoring the copy button and feedback
+                    let textToCopy = '';
+                     const elements = contentElement.querySelectorAll('h1, p, h2, li, .info-section p');
+                        elements.forEach(element => {
+                            if (element.tagName === 'H1') {
+                                textToCopy += element.innerText + '\n\n';
+                            } else if (element.tagName === 'H2') {
+                                 textToCopy += '\n' + element.innerText + ':\n';
+                            } else if (element.tagName === 'LI') {
+                                 textToCopy += '- ' + element.innerText + '\n';
+                            } else {
+                                textToCopy += element.innerText + '\n';
+                            }
+                        });
+                    textToCopy = textToCopy.trim();
+
+
+                    // Call the Qt method exposed via QWebChannel
+                    if (window.clipboardHelper) {
+                        window.clipboardHelper.copyToClipboard(textToCopy);
+
+                        // Show feedback
+                        const feedback = document.getElementById('copyFeedback');
+                        if (feedback) {
+                            feedback.classList.add('visible');
+                            setTimeout(() => {
+                                feedback.classList.remove('visible');
+                            }, 1500); // Hide feedback after 1.5 seconds
+                        }
+
+                    } else {
+                         console.error("ClipboardHelper object not available in JavaScript.");
+                         alert("复制功能未初始化，请稍后再试或手动复制。");
+                    }
+                } else {
+                    console.error("Content element not found.");
+                }
+            }
+        </script>
+
+        </body>
+        </html>
 """
-        QMessageBox.about(self, "关于 简易 Git GUI", about_text)
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("关于 简易 Git GUI")
+        msg_box.setText(about_text)
+        msg_box.setTextFormat(Qt.TextFormat.RichText)
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg_box.exec()
+
     def closeEvent(self, event):
         logging.info("应用程序关闭请求。")
         try:
