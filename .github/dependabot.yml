@@ -70,7 +70,6 @@ updates:
     labels:
       - "dependencies"
       - "dependabot"
-      - "python" # 添加一个特定标签
     # 可选：限制同时打开的 PR 数量
     open-pull-requests-limit: 8
     # 可选：指定自动分配的审阅人或负责人
