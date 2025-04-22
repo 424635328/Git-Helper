@@ -8,7 +8,7 @@ from PyQt6.QtGui import QKeySequence # ShortcutDialog 可能需要
 from PyQt6.QtCore import Qt # 可能需要
 
 # 可选：为这个模块配置单独的日志记录器，或保持简单
-# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class ShortcutDialog(QDialog):
     """用于输入快捷键名称和组合的对话框"""
