@@ -1,7 +1,7 @@
 # ui/shortcut_manager.py
 import logging
 from PyQt6.QtWidgets import QListWidgetItem, QMenu, QMessageBox
-from PyQt6.QtGui import QKeySequence, QShortcut
+from PyQt6.QtGui import QKeySequence, QShortcut, QAction
 from PyQt6.QtCore import Qt, pyqtSlot
 
 # 从父级目录导入 dialogs (如果直接运行此文件会报错，但在 main.py 中运行正常)
