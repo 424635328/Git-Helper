@@ -1,0 +1,408 @@
+/*
+ * Git GUI Dark Theme QSS
+ * Optimized for ui/main_window.py
+ */
+
+/* Base Colors */
+/* Main Background: 深灰色 */
+/* Secondary Background: 更深的灰色，用于代码、输出区域 */
+/* Tertiary Background: 稍浅的灰色，用于输入框、按钮等 */
+/* Foreground/Text: 浅灰色 */
+/* Secondary Text: 暗淡的灰色，用于占位符、禁用项 */
+/* Border/Separator: 中等灰色 */
+/* Highlight/Accent: 蓝色 */
+/* Selection Background: 暗蓝色 */
+/* Hover/Pressed Background: 稍浅的交互色 */
+
+:root {
+    /* Define colors as properties for potential future use, though direct values are fine */
+    qproperty-background-main: #2e2e2e;
+    qproperty-background-secondary: #1e1e1e;
+    qproperty-background-tertiary: #3a3a3a;
+    qproperty-foreground-main: #cccccc;
+    qproperty-foreground-secondary: #888888;
+    qproperty-border-main: #505050;
+    qproperty-accent-color: #007acc; /* VS Code Blue */
+    qproperty-selection-background: #3a3d63; /* VS Code Selection */
+    qproperty-selection-foreground: #ffffff;
+    qproperty-hover-background: #4a4a4a;
+    qproperty-pressed-background: #5a5a5a;
+    qproperty-disabled-foreground: #666666; /* Darker gray for disabled text */
+
+    /* Specific colors mentioned in Python (for consistency, though QSS won't directly use _output_colors dict) */
+    qproperty-color-prompt: #55aaff;
+    qproperty-color-command: #aaffaa;
+    qproperty-color-stdout: #cccccc;
+    qproperty-color-stderr: #ff6666;
+    qproperty-color-success: #66ff66;
+    qproperty-color-info: #55aaff;
+    qproperty-color-separator: #888888;
+}
+
+
+/* --- General --- */
+QWidget {
+    background-color: #2e2e2e; /* Main background */
+    color: #cccccc; /* Main text color */
+    selection-background-color: #3a3d63; /* Selection background */
+    selection-color: #ffffff; /* Selection text color */
+}
+
+QLabel {
+    color: #cccccc; /* Ensure labels have text color */
+    /* Optional: set padding for better spacing */
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+
+QFrame[shape="4"] { /* QFrame::HLine */
+    background-color: #505050; /* Darker separator color */
+    max-height: 1px;
+    border: none; /* Remove default border */
+}
+
+
+/* --- Buttons --- */
+QPushButton {
+    background-color: #3a3a3a;
+    color: #cccccc;
+    border: 1px solid #505050;
+    padding: 5px 10px;
+    border-radius: 4px;
+    min-height: 20px; /* Ensure buttons have a minimum height */
+}
+
+QPushButton:hover {
+    background-color: #4a4a4a;
+    border-color: #606060;
+}
+
+QPushButton:pressed {
+    background-color: #5a5a5a;
+    border-color: #707070;
+}
+
+QPushButton:disabled {
+    background-color: #333333;
+    color: #666666;
+    border-color: #404040;
+}
+
+/* Specific style for the Execute button */
+/* If you set its object name to 'executeButton' in Python: */
+/* QPushButton#executeButton {
+    background-color: #66ff66;
+    color: #1e1e1e;
+    border-color: #33cc33;
+}
+QPushButton#executeButton:hover {
+    background-color: #77ff77;
+}
+QPushButton#executeButton:pressed {
+    background-color: #55ee55;
+}
+QPushButton#executeButton:disabled {
+    background-color: #448844;
+    color: #888888;
+    border-color: #226622;
+} */
+/* Using the lightgreen style from Python is also fine */
+
+
+/* --- Input & Text Widgets --- */
+QLineEdit {
+    background-color: #3a3a3a;
+    color: #cccccc;
+    border: 1px solid #505050;
+    padding: 4px 6px;
+    border-radius: 4px;
+}
+
+QLineEdit:focus {
+    border-color: #007acc; /* Accent color on focus */
+    background-color: #4a4a4a; /* Slightly different background on focus */
+}
+
+QLineEdit::placeholder {
+    color: #888888; /* Secondary text color for placeholders */
+}
+
+QLineEdit:disabled {
+    background-color: #333333;
+    color: #666666;
+    border-color: #404040;
+}
+
+/* QTextEdit styling - affects sequence display, diff, commit details */
+/* Note: outputDisplay has specific styles in Python currently, consider removing them */
+QTextEdit {
+    background-color: #1e1e1e; /* Secondary background, good for code/output */
+    color: #cccccc;
+    border: 1px solid #505050;
+    padding: 5px;
+    border-radius: 4px;
+    font-family: "Courier New", monospace; /* Ensure monospace font */
+}
+
+QTextEdit:read-only {
+     /* Optional different style for read-only text edits */
+     /* background-color: #252525; */
+     /* border-color: #404040; */
+}
+
+/* If you set object name for outputDisplay: */
+/* QTextEdit#outputDisplay {
+    background-color: #1e1e1e;
+    color: #cccccc;
+    border: 1px solid #505050;
+    padding: 5px;
+    border-radius: 4px;
+    font-family: "Courier New", monospace;
+} */
+
+
+/* --- List, Tree, Table Views --- */
+QAbstractScrollArea, QTreeView, QListWidget, QTableWidget {
+    background-color: #252526; /* A common darker background for views */
+    color: #cccccc;
+    border: 1px solid #505050;
+    border-radius: 4px;
+    alternate-background-color: #2a2a2b; /* Slightly different for alternating rows */
+    gridline-color: #404040; /* Subtle grid lines */
+}
+
+QAbstractItemView::item {
+    padding: 3px; /* Add some padding to list/tree/table items */
+}
+
+QAbstractItemView::item:selected {
+    background-color: #3a3d63; /* Selection background */
+    color: #ffffff; /* Selection foreground */
+}
+
+QAbstractItemView::item:hover {
+    background-color: #333333; /* Subtle hover effect */
+}
+
+
+/* Headers for Tree and Table */
+QHeaderView::section {
+    background-color: #3a3a3a;
+    color: #cccccc;
+    padding: 4px;
+    border: 1px solid #505050;
+    border-bottom: none; /* Remove bottom border for a cleaner look */
+    /* Optional: text-align: left; */
+}
+
+QHeaderView::section:horizontal {
+    border-right: 1px solid #505050;
+}
+
+QHeaderView::section:horizontal:last {
+    border-right: none;
+}
+
+QHeaderView::section:pressed {
+    background-color: #4a4a4a;
+}
+
+
+/* --- Scrollbars --- */
+QScrollBar:vertical, QScrollBar:horizontal {
+    border: none;
+    background: #3a3a3a; /* Background of the scrollbar area */
+    width: 10px; /* Vertical scrollbar width */
+    height: 10px; /* Horizontal scrollbar height */
+    margin: 0px 0px 0px 0px;
+}
+
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+    background: #5a5a5a; /* Handle color */
+    border-radius: 4px;
+    min-height: 20px; /* Minimum size for handle */
+    min-width: 20px;
+}
+
+QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {
+    background: #6a6a6a;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    border: none;
+    background: none;
+    height: 0px; /* Hide the add/subtract line buttons */
+    width: 0px;
+}
+
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical,
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: none;
+}
+
+
+/* --- Splitter --- */
+QSplitter::handle {
+    background-color: #505050;
+    border: 1px solid #404040;
+    width: 2px; /* Width for vertical splitter */
+    height: 2px; /* Height for horizontal splitter */
+}
+
+QSplitter::handle:hover {
+    background-color: #606060;
+}
+
+QSplitter::handle:horizontal {
+    width: 6px; /* Make horizontal handle wider for easier grabbing */
+    image: url(path_to_horizontal_handle_icon.png); /* Optional: add a handle image */
+}
+
+QSplitter::handle:vertical {
+    height: 6px; /* Make vertical handle taller */
+    image: url(path_to_vertical_handle_icon.png); /* Optional: add a handle image */
+}
+/* You might need to provide handle images or use default Qt style (often looks fine) */
+
+
+/* --- Tabs --- */
+QTabWidget::pane {
+    border: 1px solid #505050;
+    background-color: #2e2e2e; /* Match main background */
+    margin-top: -1px; /* Overlap with the tab bar border */
+    border-radius: 4px;
+}
+
+QTabBar::tab {
+    background: #3a3a3a; /* Default tab background */
+    color: #cccccc;
+    border: 1px solid #505050;
+    border-bottom: none; /* Remove bottom border on tabs */
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    padding: 8px 15px;
+    margin-right: 1px; /* Spacing between tabs */
+}
+
+QTabBar::tab:selected {
+    background: #2e2e2e; /* Selected tab matches pane background */
+    border-bottom-color: #2e2e2e; /* Hide bottom border to blend with pane */
+    font-weight: bold;
+}
+
+QTabBar::tab:hover:!selected {
+    background: #4a4a4a; /* Hover effect for non-selected tabs */
+}
+
+QTabBar::tab:first:selected {
+    margin-left: 0;
+}
+
+
+/* --- Menu Bar and Menus --- */
+QMenuBar {
+    background-color: #3a3a3a; /* Match tool bar background */
+    color: #cccccc;
+    padding: 2px;
+    border-bottom: 1px solid #505050;
+}
+
+QMenuBar::item {
+    padding: 4px 10px;
+    background: transparent;
+}
+
+QMenuBar::item:selected {
+    background: #4a4a4a; /* Hover color */
+}
+
+QMenuBar::item:pressed {
+    background: #5a5a5a; /* Pressed color */
+}
+
+QMenu {
+    background-color: #3a3a3a; /* Match menu bar item hover */
+    color: #cccccc;
+    border: 1px solid #505050;
+    border-radius: 4px;
+    padding: 5px;
+}
+
+QMenu::item {
+    padding: 5px 20px 5px 25px; /* Add padding, space for checkmark/icon */
+    border: 1px solid transparent; /* Invisible border for hover effect */
+    border-radius: 2px;
+}
+
+QMenu::item:selected {
+    background-color: #3a3d63; /* Selection background */
+    color: #ffffff;
+    border-color: #3a3d63; /* Match border color to background on selection */
+}
+
+QMenu::separator {
+    height: 1px;
+    background: #505050;
+    margin: 5px 0;
+}
+
+/* Optional: Style checkmarks and icons if used in menus */
+/* QMenu::indicator {
+    width: 13px;
+    height: 13px;
+}
+QMenu::indicator:checked {
+    image: url(:/icons/checked.png);
+} */
+
+
+/* --- Tool Bar --- */
+QToolBar {
+    background-color: #3a3a3a; /* Dark background for toolbar */
+    border: none; /* Remove default border */
+    padding: 3px;
+    spacing: 5px; /* Space between tool buttons */
+}
+
+QToolButton {
+    background-color: transparent; /* Transparent by default */
+    border: 1px solid transparent; /* Invisible border */
+    padding: 5px;
+    border-radius: 4px;
+}
+
+QToolButton:hover {
+    background-color: #4a4a4a;
+    border-color: #505050;
+}
+
+QToolButton:pressed {
+    background-color: #5a5a5a;
+    border-color: #606060;
+}
+
+QToolButton:disabled {
+    /* ToolButton disabled state can be handled by QAction enable state */
+    /* If you need specific visual style: */
+    /* opacity: 0.6; */
+}
+
+QToolBar::separator {
+    width: 6px;
+    background-color: #505050;
+    margin: 0 3px;
+}
+
+
+/* --- Status Bar --- */
+QStatusBar {
+    background-color: #3a3a3a; /* Match tool bar/menu background */
+    color: #cccccc;
+    border-top: 1px solid #505050;
+    padding: 2px 5px;
+}
+
+QStatusBar::item {
+    border: none; /* Remove border around status bar items */
+}
