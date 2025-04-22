@@ -406,3 +406,4 @@ QStatusBar {
 QStatusBar::item {
     border: none; /* Remove border around status bar items */
 }
+
