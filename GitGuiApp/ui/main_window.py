@@ -1713,10 +1713,9 @@ v1.11 - 增加更多命令和参数按钮，优化参数添加提示/校验，�
 
 本项目是学习 Qt6 和 Git 命令交互的实践项目
 作者: GitHub @424635328
+date: 2025-04-22
 """
         QMessageBox.about(self, "关于 简易 Git GUI", about_text)
-
-
     def closeEvent(self, event):
         logging.info("应用程序关闭请求。")
         try:
@@ -1728,3 +1727,4 @@ v1.11 - 增加更多命令和参数按钮，优化参数添加提示/校验，�
 
         logging.info("应用程序正在关闭。")
         event.accept()
+        

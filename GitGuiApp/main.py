@@ -280,7 +280,6 @@ if __name__ == '__main__':
     logging.info("应用程序启动...")
     app = QApplication(sys.argv)
 
-    # Apply the embedded QSS style
     try:
         app.setStyleSheet(CYBERPUNK_QSS)
         logging.info("已应用赛博朋克风格样式。")
