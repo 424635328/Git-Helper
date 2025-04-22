@@ -230,6 +230,8 @@ _查看仓库状态示例_
 
 ## 🤝 贡献
 
+[![GitHub Contributors](https://img.shields.io/github/contributors/424635328/Git-Helper.svg)](https://github.com/424635328/Git-Helper/graphs/contributors)
+
 非常欢迎社区的贡献！如果您有改进意见、发现 Bug 或想添加新功能，请随时提交 Issue 或 Pull Request。
 
 1. Fork 本仓库 [`https://github.com/424635328/Git-Helper`](https://github.com/424635328/Git-Helper)。
