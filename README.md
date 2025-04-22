@@ -29,6 +29,7 @@
   - [高级操作菜单](#高级操作菜单)
 - [📸 截图示例](#-截图示例)
 - [🤝 贡献](#-贡献)
+  - [贡献者](#-贡献者)
 - [📄 许可协议](#-许可协议)
 - [🙏 鸣谢](#-鸣谢)
 
@@ -238,16 +239,13 @@ _查看仓库状态示例_
 <table>
   <tbody>
     <tr>
-      <td align="center" valign="top" width="14.28%">
+      <td align="center" valign="top" width="20.28%">
         <a href="https://github.com/424635328">
           <img src="https://avatars.githubusercontent.com/u/133365865?v=4"
                width="50px;"
                alt="424635328"
                style="border-radius: 50%;"/>
         </a>
-        <br />
-        <sub><b>424635328</b></sub>
-        <br />
       </td>
       <!-- 如果还有其他贡献者，他们的条目会放在这里 -->
       <!-- <td align="center" valign="top" width="14.28%"><a href="https://github.com/另一用户名">...</a></td> -->
