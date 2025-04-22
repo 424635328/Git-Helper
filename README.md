@@ -239,7 +239,7 @@ _查看仓库状态示例_
 <table>
   <tbody>
     <tr>
-      <td align="center" valign="top" width="14.28%">
+      <td align="center" valign="top">
         <a href="https://github.com/424635328">
           <img src="https://avatars.githubusercontent.com/u/133365865?v=4"
                width="50px;"
