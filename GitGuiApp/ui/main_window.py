@@ -157,7 +157,6 @@ class MainWindow(QMainWindow):
 
             def process_finish(return_code, stdout, stderr):
                 if stdout: self._append_output(f"stdout:\n{stdout.strip()}")
-                if stderr: self._append_output(f"stderr:\n{stderr.strip()}")
 
                 if return_code == 0:
                     self._append_output(f"✅ 成功: '{display_cmd}'", QColor("Green"))
