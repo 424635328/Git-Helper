@@ -12,8 +12,11 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QAction, QKeySequence, QColor, QTextCursor, QIcon, QFont, QStandardItemModel, QDesktopServices, QTextCharFormat
 from PyQt6.QtCore import Qt, pyqtSlot, QSize, QTimer, QModelIndex, QUrl, QPoint, QItemSelection
-from typing import Union
-from .dialogs import ShortcutDialog, SettingsDialog
+from typing import Union, Optional
+try:
+    from .dialogs import ShortcutDialog, SettingsDialog
+except ImportError:
+    from dialogs import ShortcutDialog, SettingsDialog
 from .shortcut_manager import ShortcutManager
 from .status_tree_model import StatusTreeModel, STATUS_STAGED, STATUS_UNSTAGED, STATUS_UNTRACKED
 from core.git_handler import GitHandler
@@ -40,20 +43,23 @@ class MainWindow(QMainWindow):
         self.current_command_sequence = []
         self._repo_dependent_widgets = []
 
-        self.output_display: QTextEdit | None = None
-        self.command_input: QLineEdit | None = None
-        self.sequence_display: QTextEdit | None = None
-        self.shortcut_list_widget: QListWidget | None = None
-        self.repo_label: QLabel | None = None
-        self.status_bar: QStatusBar | None = None
-        self.branch_list_widget: QListWidget | None = None
-        self.status_tree_view: QTreeView | None = None
-        self.status_tree_model: StatusTreeModel | None = None
-        self.log_table_widget: QTableWidget | None = None
-        self.diff_text_edit: QTextEdit | None = None
-        self.main_tab_widget: QTabWidget | None = None
-        self.commit_details_textedit: QTextEdit | None = None
+        self.output_display: Optional[QTextEdit] = None
+        self.command_input: Optional[QLineEdit] = None
+        self.sequence_display: Optional[QTextEdit] = None
+        self.shortcut_list_widget: Optional[QListWidget] = None
+        self.repo_label: Optional[QLabel] = None
+        self.status_bar: Optional[QStatusBar] = None
+        self.branch_list_widget: Optional[QListWidget] = None
+        self.status_tree_view: Optional[QTreeView] = None
+        self.status_tree_model: Optional[StatusTreeModel] = None
+        self.log_table_widget: Optional[QTableWidget] = None
+        self.diff_text_edit: Optional[QTextEdit] = None
+        self.main_tab_widget: Optional[QTabWidget] = None
+        self.commit_details_textedit: Optional[QTextEdit] = None
         self._output_tab_index = -1
+
+        self.current_branch_name_display: Optional[str] = None
+
 
         self._init_ui()
         self.shortcut_manager.load_and_register_shortcuts()
@@ -113,8 +119,6 @@ class MainWindow(QMainWindow):
                 self._set_ui_busy(False)
                 if refresh_on_success:
                      self._refresh_all_views()
-                else:
-                     self._refresh_branch_list()
                 return
 
             cmd_str = command_strings[index].strip()
@@ -172,7 +176,7 @@ class MainWindow(QMainWindow):
     def _add_repo_dependent_widget(self, widget):
          if widget:
               self._repo_dependent_widgets.append(widget)
-              widget.setEnabled(self.git_handler.is_valid_repo())
+              self._update_ui_enable_state(self.git_handler.is_valid_repo())
 
     def _init_ui(self):
         central_widget = QWidget()
@@ -282,7 +286,7 @@ class MainWindow(QMainWindow):
 
         left_layout.addWidget(QLabel("快捷键组合:"))
         self.shortcut_list_widget = QListWidget()
-        self.shortcut_list_widget.setToolTip("双击加载到序列，右键删除")
+        self.shortcut_list_widget.setToolTip("双击执行，右键删除")
         self.shortcut_list_widget.itemDoubleClicked.connect(self.shortcut_manager.execute_shortcut_from_list)
         self.shortcut_list_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.shortcut_list_widget.customContextMenuRequested.connect(self.shortcut_manager.show_shortcut_context_menu)
@@ -311,7 +315,7 @@ class MainWindow(QMainWindow):
         status_tab_layout = QVBoxLayout(status_tab_widget)
         status_tab_layout.setContentsMargins(5, 5, 5, 5)
         status_tab_layout.setSpacing(4)
-        self.main_tab_widget.addTab(status_tab_widget, "状态 / 文件")
+        self.main_tab_widget.addTab(status_tab_layout.parentWidget(), "状态 / 文件")
 
         status_action_layout = QHBoxLayout()
         stage_all_button = QPushButton("全部暂存 (+)")
@@ -537,7 +541,10 @@ class MainWindow(QMainWindow):
             if self.diff_text_edit: self.diff_text_edit.clear()
             if self.commit_details_textedit: self.commit_details_textedit.clear()
             self._clear_sequence()
+            self.current_branch_name_display = "(无效仓库)"
+            self._update_status_bar_info()
             logging.info("Git 仓库无效，UI 已禁用。")
+
 
     def _update_ui_enable_state(self, enabled: bool):
         for widget in self._repo_dependent_widgets:
@@ -552,12 +559,33 @@ class MainWindow(QMainWindow):
             if action_text in ["选择仓库(&O)...", "Git 全局配置(&G)...", "退出(&X)", "关于(&A)", "清空原始输出"]:
                 action.setEnabled(True)
 
+    def _update_status_bar_info(self):
+        if not self.status_bar: return
+
+        is_valid = self.git_handler.is_valid_repo() if self.git_handler else False
+        repo_path = self.git_handler.get_repo_path() if self.git_handler else None
+
+        repo_path_short = repo_path or "(未选择)"
+        if len(repo_path_short) > 40:
+            repo_path_short = f"...{repo_path_short[-37:]}"
+
+        branch_display = self.current_branch_name_display if self.current_branch_name_display else ("(未知分支)" if is_valid else "(无效仓库)")
+
+        status_message = f"分支: {branch_display} | 仓库: {repo_path_short}"
+
+        if self.status_bar.currentMessage().startswith("⏳ "):
+             logging.debug("状态栏正在显示繁忙消息，跳过更新。")
+        else:
+            self.status_bar.showMessage(status_message, 0)
+            logging.debug(f"状态栏更新: {status_message}")
+
+
     @pyqtSlot()
     def _refresh_all_views(self):
         if not self._check_repo_and_warn("无法刷新视图，仓库无效。"): return
 
         logging.info("正在刷新状态、分支和日志视图...")
-        if self.status_bar: self.status_bar.showMessage("正在刷新...", 0)
+        if self.status_bar: self.status_bar.showMessage("⏳ 正在刷新...", 0)
         QApplication.processEvents()
 
         self._refresh_status_view()
@@ -576,34 +604,48 @@ class MainWindow(QMainWindow):
         self.git_handler.get_status_porcelain_async(self._on_status_refreshed)
 
     @pyqtSlot(int, str, str)
-    def _on_status_refreshed(self, return_code, stdout, stderr):
-        if not self.status_tree_model or not self.status_tree_view:
+    def _on_status_refreshed(self, return_code: int, stdout: str, stderr: str):
+        # Removed initial check
+        if not self.status_tree_model or not self.status_tree_view: # Keep critical objects check
              logging.error("状态树模型或视图在状态刷新时未初始化。")
+             self._update_status_bar_info() # Ensure status bar is updated even on error
              return
 
         stage_all_btn = next((w for w in self._repo_dependent_widgets if isinstance(w, QPushButton) and w.text() == "全部暂存 (+)"), None)
         unstage_all_btn = next((w for w in self._repo_dependent_widgets if isinstance(w, QPushButton) and w.text() == "全部撤销暂存 (-)"), None)
 
-        if return_code == 0:
-            logging.debug("接收到 status porcelain，正在填充模型...")
-            self.status_tree_model.parse_and_populate(stdout)
-            self.status_tree_view.expandAll()
-            self.status_tree_view.resizeColumnToContents(STATUS_COL_STATUS)
-            self.status_tree_view.setColumnWidth(STATUS_COL_STATUS, max(100, self.status_tree_view.columnWidth(STATUS_COL_STATUS)))
+        # === FIX: 在视图上禁用更新 ===
+        if self.status_tree_view:
+             self.status_tree_view.setUpdatesEnabled(False)
 
-            has_unstaged_or_untracked = self.status_tree_model.unstage_root.rowCount() > 0 or self.status_tree_model.untracked_root.rowCount() > 0
-            if stage_all_btn: stage_all_btn.setEnabled(has_unstaged_or_untracked)
-            if unstage_all_btn: unstage_all_btn.setEnabled(self.status_tree_model.staged_root.rowCount() > 0)
+        try:
+            if return_code == 0:
+                logging.debug("接收到 status porcelain，正在填充模型...")
+                # === 调用模型的方法 ===
+                self.status_tree_model.parse_and_populate(stdout)
+                # === 展开/调整视图 ===
+                self.status_tree_view.expandAll()
+                self.status_tree_view.resizeColumnToContents(STATUS_COL_STATUS)
+                self.status_tree_view.setColumnWidth(STATUS_COL_STATUS, max(100, self.status_tree_view.columnWidth(STATUS_COL_STATUS)))
 
-        else:
-            logging.error(f"获取状态失败: RC={return_code}, 错误: {stderr}")
-            self._append_output(f"❌ 获取 Git 状态失败:\n{stderr}", QColor("red"))
-            self.status_tree_model.clear_status()
-            if stage_all_btn: stage_all_btn.setEnabled(False)
-            if unstage_all_btn: unstage_all_btn.setEnabled(False)
+                has_unstaged_or_untracked = self.status_tree_model.unstage_root.rowCount() > 0 or self.status_tree_model.untracked_root.rowCount() > 0 or self.status_tree_model.unmerged_root.rowCount() > 0 # Include unmerged
+                if stage_all_btn: stage_all_btn.setEnabled(has_unstaged_or_untracked)
+                if unstage_all_btn: unstage_all_btn.setEnabled(self.status_tree_model.staged_root.rowCount() > 0)
 
-        if self.status_bar and "正在刷新" in self.status_bar.currentMessage():
-             self._on_branches_refreshed(0, "", "")
+            else:
+                logging.error(f"获取状态失败: RC={return_code}, 错误: {stderr}")
+                self._append_output(f"❌ 获取 Git 状态失败:\n{stderr}", QColor("red"))
+                self.status_tree_model.clear_status()
+                if stage_all_btn: stage_all_btn.setEnabled(False)
+                if unstage_all_btn: unstage_all_btn.setEnabled(False)
+
+        finally:
+            # === FIX: 在视图上恢复更新 ===
+            if self.status_tree_view:
+                 self.status_tree_view.setUpdatesEnabled(True)
+
+        self._update_status_bar_info()
+
 
     @pyqtSlot()
     def _refresh_branch_list(self):
@@ -613,9 +655,12 @@ class MainWindow(QMainWindow):
         self.git_handler.get_branches_formatted_async(self._on_branches_refreshed)
 
     @pyqtSlot(int, str, str)
-    def _on_branches_refreshed(self, return_code, stdout, stderr):
-        if not self.branch_list_widget or not self.git_handler:
+    def _on_branches_refreshed(self, return_code: int, stdout: str, stderr: str):
+        # Removed initial check that logged ERROR
+        if not self.branch_list_widget or not self.git_handler: # Keep critical objects check
              logging.error("分支列表组件或 GitHandler 在分支刷新时未初始化。")
+             self.current_branch_name_display = "(内部错误)"
+             self._update_status_bar_info() # Ensure status bar is updated even on error
              return
 
         self.branch_list_widget.clear()
@@ -648,20 +693,22 @@ class MainWindow(QMainWindow):
                 self.branch_list_widget.addItem(item)
 
             if current_branch_name:
+                 self.current_branch_name_display = current_branch_name
                  items = self.branch_list_widget.findItems(current_branch_name, Qt.MatchFlag.MatchExactly)
                  if items: self.branch_list_widget.setCurrentItem(items[0])
+            else:
+                 self.current_branch_name_display = "(未知分支)"
 
         elif is_valid:
             logging.error(f"获取分支失败: RC={return_code}, 错误: {stderr}")
             self._append_output(f"❌ 获取分支列表失败:\n{stderr}", QColor("red"))
+            self.current_branch_name_display = "(未知分支)"
         elif not is_valid:
-             logging.warning("仓库在分支刷新前变得无效。")
+             logging.warning("仓库在分支刷新前变得无效，跳过处理分支结果。")
+             self.current_branch_name_display = "(无效仓库)"
 
-        repo_path_short = self.git_handler.get_repo_path() or "(未选择)"
-        if len(repo_path_short) > 40: repo_path_short = f"...{repo_path_short[-37:]}"
-        branch_display = current_branch_name if current_branch_name else ("(未知分支)" if is_valid else "(无效仓库)")
-        status_message = f"分支: {branch_display} | 仓库: {repo_path_short}"
-        if self.status_bar: self.status_bar.showMessage(status_message, 0)
+        self._update_status_bar_info()
+
 
     @pyqtSlot()
     def _refresh_log_view(self):
@@ -672,9 +719,11 @@ class MainWindow(QMainWindow):
         self.git_handler.get_log_formatted_async(count=200, finished_slot=self._on_log_refreshed)
 
     @pyqtSlot(int, str, str)
-    def _on_log_refreshed(self, return_code, stdout, stderr):
-        if not self.log_table_widget:
+    def _on_log_refreshed(self, return_code: int, stdout: str, stderr: str):
+        # Removed initial check
+        if not self.log_table_widget: # Keep critical objects check
              logging.error("日志表格组件在日志刷新时未初始化。")
+             self._update_status_bar_info() # Ensure status bar is updated even on error
              return
 
         if return_code == 0:
@@ -725,11 +774,11 @@ class MainWindow(QMainWindow):
             logging.error(f"获取日志失败: RC={return_code}, 错误: {stderr}")
             self._append_output(f"❌ 获取提交历史失败:\n{stderr}", QColor("red"))
 
-        if self.status_bar and "正在刷新" in self.status_bar.currentMessage():
-             self._on_branches_refreshed(0, "", "")
+        self._update_status_bar_info()
+
 
     def _select_repository(self):
-        start_path = self.git_handler.get_repo_path() if self.git_handler and self.git_handler.get_repo_path() else None
+        start_path = self.git_handler.get_repo_path() if self.git_handler else None
         if not start_path or not os.path.isdir(start_path):
             start_path = os.getcwd()
             if not os.path.isdir(os.path.join(start_path, '.git')):
@@ -751,6 +800,7 @@ class MainWindow(QMainWindow):
                 if self.status_tree_model: self.status_tree_model.clear_status()
                 if self.branch_list_widget: self.branch_list_widget.clear()
                 if self.log_table_widget: self.log_table_widget.setRowCount(0)
+                self.current_branch_name_display = None
 
                 self.git_handler.set_repo_path(dir_path)
                 self._update_repo_status()
@@ -766,7 +816,6 @@ class MainWindow(QMainWindow):
                  self.git_handler.set_repo_path(None)
                  self._update_repo_status()
 
-    # 修改了这一行的类型提示
     def _add_command_to_sequence(self, command_to_add: Union[str, list[str]]):
         if isinstance(command_to_add, list):
             command_str = ' '.join(shlex.quote(part) for part in command_to_add)
@@ -844,7 +893,7 @@ class MainWindow(QMainWindow):
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         else:
             QApplication.restoreOverrideCursor()
-            self._on_branches_refreshed(0, "", "")
+            self._update_status_bar_info()
 
     @pyqtSlot()
     def _execute_command_from_input(self):
@@ -874,17 +923,17 @@ class MainWindow(QMainWindow):
 
         if not self._check_repo_and_warn("无法加载快捷键，仓库无效。"): return
 
-        shortcut_name = item.text()
-        shortcut_data = self.shortcut_manager.get_shortcut_data_by_name(shortcut_name)
-        if shortcut_data and shortcut_data.get('sequence'):
+        shortcut_data = item.data(Qt.ItemDataRole.UserRole)
+        if shortcut_data and isinstance(shortcut_data, dict) and shortcut_data.get('sequence'):
+            name = shortcut_data.get('name', '未知')
             sequence_str = shortcut_data['sequence']
             self.current_command_sequence = [line.strip() for line in sequence_str.strip().splitlines() if line.strip()]
             self._update_sequence_display()
-            if self.status_bar: self.status_bar.showMessage(f"快捷键 '{shortcut_name}' 已加载到序列构建器", 3000)
-            logging.info(f"快捷键 '{shortcut_name}' 已加载到构建器。")
+            if self.status_bar: self.status_bar.showMessage(f"快捷键 '{name}' 已加载到序列构建器", 3000)
+            logging.info(f"快捷键 '{name}' 已加载到构建器。")
         else:
-            logging.warning(f"找不到快捷键 '{shortcut_name}' 的序列数据。")
-            self._show_warning("加载失败", f"无法加载快捷键 '{shortcut_name}' 的命令序列。")
+             logging.warning("双击了列表项，但未获取到快捷键数据或序列。")
+
 
     def _execute_sequence_from_string(self, name: str, sequence_str: str):
         if not self._check_repo_and_warn(f"无法执行快捷键 '{name}'，仓库无效。"): return
@@ -1040,10 +1089,10 @@ class MainWindow(QMainWindow):
             self.diff_text_edit.setPlaceholderText("")
 
     @pyqtSlot(int, str, str)
-    def _on_diff_received(self, return_code, stdout, stderr):
-        if not self.diff_text_edit: return
-
-        self.diff_text_edit.setPlaceholderText("")
+    def _on_diff_received(self, return_code: int, stdout: str, stderr: str):
+        # Removed initial check
+        if not self.diff_text_edit: return # Keep critical objects check
+        self.diff_text_edit.setPlaceholderText("");
 
         if return_code == 0:
             if stdout.strip():
@@ -1209,8 +1258,9 @@ class MainWindow(QMainWindow):
             logging.error(f"无法在日志表格中找到行 {selected_row} 的第 {LOG_COL_COMMIT} 列项。")
 
     @pyqtSlot(int, str, str)
-    def _on_commit_details_received(self, return_code, stdout, stderr):
-        if not self.commit_details_textedit: return
+    def _on_commit_details_received(self, return_code: int, stdout: str, stderr: str):
+        # Removed initial check
+        if not self.commit_details_textedit: return # Keep critical objects check
         self.commit_details_textedit.setPlaceholderText("");
 
         if return_code == 0:
@@ -1281,24 +1331,24 @@ class MainWindow(QMainWindow):
         try: version = self.windowTitle().split('v')[-1].strip()
         except: version = "N/A"
         about_text = f"""
-        **简易 Git GUI**
+**简易 Git GUI**
 
-        版本: {version}
+版本: {version}
 
-        这是一个简单的 Git GUI 工具，用于学习和执行 Git 命令。
+这是一个简单的 Git GUI 工具，用于学习和执行 Git 命令。
 
-        **开发日志:**
-        v1.0 - 初始版本 (仓库选择, 状态, Diff, Log, 命令输入)
-        v1.1 - 增加暂存/撤销暂存单个文件
-        v1.2 - 增加创建/切换/删除分支
-        v1.3 - 提交功能
-        v1.4 - 增加 Pull/Push/Fetch 按钮
-        v1.5 - 增加 Git 全局配置对话框
-        v1.6 - 异步执行命令，优化UI响应
-        v1.7 - 增加命令序列构建器和快捷键功能
+**开发日志:**
+v1.0 - 初始版本 (仓库选择, 状态, Diff, Log, 命令输入)
+v1.1 - 增加暂存/撤销暂存单个文件
+v1.2 - 增加创建/切换/删除分支
+v1.3 - 提交功能
+v1.4 - 增加 Pull/Push/Fetch 按钮
+v1.5 - 增加 Git 全局配置对话框
+v1.6 - 异步执行命令，优化UI响应
+v1.7 - 增加命令序列构建器和快捷键功能
 
-        本项目是学习 Qt6 和 Git 命令交互的实践项目
-        """
+本项目是学习 Qt6 和 Git 命令交互的实践项目
+"""
         QMessageBox.about(self, "关于 简易 Git GUI", about_text)
 
     def closeEvent(self, event):
@@ -1317,7 +1367,11 @@ if __name__ == '__main__':
     logging.info("应用程序启动...")
     app = QApplication(sys.argv)
 
-    app.setStyle("Fusion")
+    try:
+        app.setStyle("Fusion")
+        logging.info("已应用样式 (Fusion或自定义)。")
+    except Exception as e:
+         logging.warning(f"应用样式失败: {e}")
 
     mainWin = MainWindow()
     mainWin.show()
