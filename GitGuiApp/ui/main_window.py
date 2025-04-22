@@ -793,7 +793,7 @@ class MainWindow(QMainWindow):
             "- 保存/加载带快捷键的命令组合\n"
             "- 异步执行 Git 命令\n"
             "- 分支/远程/配置基础操作\n\n"
-            "作者: AI"
+            "作者: github/424635328"
         )
 
     def closeEvent(self, event):
