@@ -266,14 +266,14 @@ class MainWindow(QMainWindow):
 
         left_layout.addWidget(QLabel("常用参数/选项 (会添加新行到序列，请手动编辑或调整):"))
         parameter_buttons_layout = QHBoxLayout()
-        self._add_command_button(parameter_buttons_layout, "-a", "添加 '-a' 参数到序列 (请手动添加到对应命令后)", lambda: self._add_command_to_sequence("-a"))
-        self._add_command_button(parameter_buttons_layout, "-v", "添加 '-v' 参数到序列 (请手动添加到对应命令后)", lambda: self._add_command_to_sequence("-v"))
-        self._add_command_button(parameter_buttons_layout, "--hard", "添加 '--hard' 参数到序列 (危险! 通常用于 reset, 请手动添加到对应命令后)", lambda: self._add_command_to_sequence("--hard"))
-        self._add_command_button(parameter_buttons_layout, "-f", "添加 '-f' 参数到序列 (强制, 请手动添加到对应命令后)", lambda: self._add_command_to_sequence("-f"))
-        self._add_command_button(parameter_buttons_layout, "-u", "添加 '-u' 参数到序列 (上游跟踪, 请手动添加到对应命令后)", lambda: self._add_command_to_sequence("-u"))
-        self._add_command_button(parameter_buttons_layout, "-d", "添加 '-d' 参数到序列 (删除, 常用于 branch, 请手动添加到对应命令后)", lambda: self._add_command_to_sequence("-d"))
-        self._add_command_button(parameter_buttons_layout, "-p", "添加 '-p' 参数到序列 (补丁模式, 请手动添加到对应命令后)", lambda: self._add_command_to_sequence("-p"))
-        self._add_command_button(parameter_buttons_layout, "--soft", "添加 '--soft' 参数到序列 (常用于 reset, 请手动添加到对应命令后)", lambda: self._add_command_to_sequence("--soft"))
+        self._add_command_button(parameter_buttons_layout, "-a", "添加 '-a' 参数到序列 (请手动添加到对应命令后)", lambda: self._add_parameter_to_sequence("-a"))
+        self._add_command_button(parameter_buttons_layout, "-v", "添加 '-v' 参数到序列 (请手动添加到对应命令后)", lambda: self._add_parameter_to_sequence("-v"))
+        self._add_command_button(parameter_buttons_layout, "--hard", "添加 '--hard' 参数到序列 (危险! 通常用于 reset, 请手动添加到对应命令后)", lambda: self._add_parameter_to_sequence("--hard"))
+        self._add_command_button(parameter_buttons_layout, "-f", "添加 '-f' 参数到序列 (强制, 请手动添加到对应命令后)", lambda: self._add_parameter_to_sequence("-f"))
+        self._add_command_button(parameter_buttons_layout, "-u", "添加 '-u' 参数到序列 (上游跟踪, 请手动添加到对应命令后)", lambda: self._add_parameter_to_sequence("-u"))
+        self._add_command_button(parameter_buttons_layout, "-d", "添加 '-d' 参数到序列 (删除, 常用于 branch, 请手动添加到对应命令后)", lambda: self._add_parameter_to_sequence("-d"))
+        self._add_command_button(parameter_buttons_layout, "-p", "添加 '-p' 参数到序列 (补丁模式, 请手动添加到对应命令后)", lambda: self._add_parameter_to_sequence("-p"))
+        self._add_command_button(parameter_buttons_layout, "--soft", "添加 '--soft' 参数到序列 (常用于 reset, 请手动添加到对应命令后)", lambda: self._add_parameter_to_sequence("--soft"))
         left_layout.addLayout(parameter_buttons_layout)
 
 
@@ -602,7 +602,7 @@ class MainWindow(QMainWindow):
         if is_repo_dependent:
             self._add_repo_dependent_widget(button)
         else:
-             button.setEnabled(True)
+             button.setEnabled(True) # Allow init button even without a repo
         return button
 
     def _update_repo_status(self):
@@ -637,6 +637,14 @@ class MainWindow(QMainWindow):
         for widget in self._repo_dependent_widgets:
             if widget:
                  widget.setEnabled(enabled)
+
+        # Explicitly enable the Init button even when repo is not valid
+        # Assuming the Init button is the first widget added in _create_left_panel
+        if self._repo_dependent_widgets and len(self._repo_dependent_widgets) > 0:
+            init_button = self._repo_dependent_widgets[0]
+            if isinstance(init_button, QPushButton) and init_button.text() == "Init":
+                 init_button.setEnabled(True)
+
 
         if self.shortcut_manager:
             self.shortcut_manager.set_shortcuts_enabled(enabled)
@@ -934,6 +942,44 @@ class MainWindow(QMainWindow):
         self._update_sequence_display()
         logging.debug(f"命令添加到序列: {command_str}")
 
+    def _add_parameter_to_sequence(self, parameter_to_add: str):
+        param_str = parameter_to_add.strip()
+        if not param_str:
+            logging.debug("Attempted to add empty parameter, ignoring.")
+            return
+
+        # Simple check if sequence is empty - parameters alone don't make sense
+        if not self.current_command_sequence:
+            self._show_information("提示", "请先添加一个 Git 命令再添加参数。")
+            logging.warning(f"Attempted to add parameter '{param_str}' to empty sequence.")
+            return
+
+        self.current_command_sequence.append(param_str)
+        self._update_sequence_display()
+        logging.debug(f"参数添加到序列: {param_str}")
+
+        # Show a general hint about parameters needing manual placement
+        if self.status_bar:
+             self.status_bar.showMessage("参数已添加到序列末尾。请手动编辑以将其与命令组合。", 5000)
+
+
+        # Specific warnings for potentially dangerous or context-sensitive parameters
+        last_command = self.current_command_sequence[-2] if len(self.current_command_sequence) > 1 else ""
+        if param_str == "--hard":
+            if "git reset" not in last_command:
+                 self._show_warning("警告: --hard 参数",
+                                    "'--hard' 参数通常用于 'git reset'。\n\n请确认您知道此参数的用途，它可能导致工作区和暂存区的更改丢失。\n\n请手动将其移动到 'git reset' 命令后方。")
+            else:
+                 self._show_information("提示: --hard 参数",
+                                    "'--hard' 参数已添加到序列。\n\n请手动将其移动到 'git reset' 命令后方。")
+        elif param_str == "-f" or param_str == "--force":
+             if "git push" not in last_command and "git branch" not in last_command and "git checkout" not in last_command:
+                  self._show_warning("警告: -f 参数",
+                                    "'-f' 参数用于强制执行操作。\n\n请确认您知道此参数的用途，它可能覆盖远程分支或本地未合并的分支。\n\n请手动将其移动到对应的命令后方。")
+             else:
+                  self._show_information("提示: -f 参数",
+                                    "'-f' 参数已添加到序列。\n\n请手动将其移动到对应的命令后方。")
+
 
     def _add_files_to_sequence(self):
         if not self._check_repo_and_warn(): return
@@ -1008,7 +1054,7 @@ class MainWindow(QMainWindow):
             if not clean_target:
                  self._show_warning("操作取消", "目标不能为空。")
                  return
-            if "--hard" in clean_target:
+            if "--hard" in clean_target.lower():
                  reply = QMessageBox.warning(self, "⚠️ 危险操作: git reset --hard",
                                               "'git reset --hard' 将丢弃工作区和暂存区的所有更改！\n\n此操作不可撤销！\n\n确定要继续吗？",
                                               QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
@@ -1077,27 +1123,27 @@ class MainWindow(QMainWindow):
         if not self._check_repo_and_warn(): return
 
         dialog_title = "恢复文件 (Restore)"
-        dialog_prompt = "输入要恢复的文件路径或目录 (用空格分隔，可用引号)。\n\n选择恢复目标："
+        dialog_prompt = "输入要恢复的文件路径或目录 (用空格分隔，可用引号)。\n\n选择恢复目标：(Yes: 工作区 / No: 暂存区)"
         files_str, ok = QInputDialog.getText(self, dialog_title, dialog_prompt, QLineEdit.EchoMode.Normal)
 
         if ok and files_str:
             try:
                 file_list = shlex.split(files_str.strip())
                 if file_list:
-                     restore_target_reply = QMessageBox.question(self, "恢复目标", f"选择恢复目标：\n\n'{', '.join(file_list[:3])}...' 等 {len(file_list)} 个文件",
-                                                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
-                                                                 QMessageBox.StandardButton.No) # Yes=Working tree, No=Staged
+                     # Use an input dialog for clarity on restore source (index or working tree)
+                     restore_source, source_ok = QInputDialog.getItem(self, "选择恢复来源", "从哪里恢复文件?",
+                                                                       ["工作树 (丢弃未暂存更改)", "暂存区 (丢弃已暂存更改)"], 0, False)
 
-                     if restore_target_reply == QMessageBox.StandardButton.Cancel:
+                     if not source_ok:
                           self._show_information("操作取消", "文件恢复已取消。")
                           return
 
-                     restore_staged = (restore_target_reply == QMessageBox.StandardButton.No) # No means restore TO staged
+                     is_staged_source = (restore_source == "暂存区 (丢弃已暂存更改)")
 
                      commands = []
                      for file_path in file_list:
                           command = ["git", "restore"]
-                          if restore_staged: command.append("--staged")
+                          if is_staged_source: command.append("--staged")
                           command.append("--")
                           command.append(shlex.quote(file_path))
                           commands.append(' '.join(command))
@@ -1130,6 +1176,13 @@ class MainWindow(QMainWindow):
         for widget in self._repo_dependent_widgets:
             if widget:
                 widget.setEnabled(not busy and self.git_handler.is_valid_repo())
+
+        # Ensure Init button is always enabled unless busy
+        if self._repo_dependent_widgets and len(self._repo_dependent_widgets) > 0:
+            init_button = self._repo_dependent_widgets[0]
+            if isinstance(init_button, QPushButton) and init_button.text() == "Init":
+                 init_button.setEnabled(not busy)
+
 
         for action in self.findChildren(QAction):
             action_text = action.text()
@@ -1169,7 +1222,8 @@ class MainWindow(QMainWindow):
             item = self.shortcut_list_widget.currentItem()
             if not item: return
 
-        if not self._check_repo_and_warn("无法加载快捷键，仓库无效。"): return
+        # Allow loading shortcut even if repo is invalid, maybe the shortcut is `git init`
+        # if not self._check_repo_and_warn("无法加载快捷键，仓库无效。"): return
 
         shortcut_data = item.data(Qt.ItemDataRole.UserRole)
         if shortcut_data and isinstance(shortcut_data, dict) and shortcut_data.get('sequence'):
@@ -1184,7 +1238,8 @@ class MainWindow(QMainWindow):
 
 
     def _execute_sequence_from_string(self, name: str, sequence_str: str):
-        if not self._check_repo_and_warn(f"无法执行快捷键 '{name}'，仓库无效。"): return
+        # Allow executing shortcut even if repo is invalid, maybe the shortcut is `git init`
+        # if not self._check_repo_and_warn(f"无法执行快捷键 '{name}'，仓库无效。"): return
         if self.status_bar: self.status_bar.showMessage(f"正在执行快捷键: {name}", 3000)
 
         commands = [line.strip() for line in sequence_str.strip().splitlines() if line.strip()]
@@ -1194,11 +1249,22 @@ class MainWindow(QMainWindow):
              logging.warning(f"快捷键 '{name}' 导致命令列表为空。")
              return
 
-        self.current_command_sequence = commands
-        self._update_sequence_display()
+        # Check if the first command is 'git init' and repo is invalid, allow execution.
+        # Otherwise, check if repo is valid.
+        allow_execution = True
+        if commands and commands[0].strip().lower().startswith("git init"):
+             pass # Always allow git init
+        elif not self.git_handler.is_valid_repo():
+             self._show_warning(f"无法执行快捷键 '{name}'", "仓库无效，无法执行除 'git init' 以外的命令。")
+             allow_execution = False
 
-        logging.info(f"准备执行快捷键 '{name}' 的命令列表: {commands}")
-        self._run_command_list_sequentially(commands)
+
+        if allow_execution:
+             self.current_command_sequence = commands
+             self._update_sequence_display()
+
+             logging.info(f"准备执行快捷键 '{name}' 的命令列表: {commands}")
+             self._run_command_list_sequentially(commands)
 
 
     @pyqtSlot()
@@ -1507,6 +1573,13 @@ class MainWindow(QMainWindow):
         if reply == QMessageBox.StandardButton.Yes:
              logging.info(f"请求{action_text}本地分支: {branch_name} (using {delete_flag})")
              self._run_command_list_sequentially([f"git branch {delete_flag} {shlex.quote(branch_name)}"])
+        elif reply == QMessageBox.StandardButton.Cancel and not force:
+             # Offer force delete if simple delete was cancelled and branch is likely unmerged
+             force_delete_reply = QMessageBox.question(self, "强制删除?", f"由于分支可能未合并，普通删除失败。\n\n要尝试强制删除本地分支 '{branch_name}' 吗？\n\n此操作可能导致工作丢失。",
+                                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                                         QMessageBox.StandardButton.No)
+             if force_delete_reply == QMessageBox.StandardButton.Yes:
+                  self._delete_branch_dialog(branch_name, force=True)
 
 
     def _delete_remote_branch_dialog(self, remote_name: str, branch_name: str):
@@ -1668,6 +1741,7 @@ v1.7 - 增加命令序列构建器和快捷键功能
 v1.8 - 增加提交详情显示和提交历史记录
 v1.9 - 增加远程仓库列表功能
 v1.10 - 增加全局配置保存和加载功能
+v1.11 - 增加更多命令和参数按钮，优化参数添加提示/校验
 
 本项目是学习 Qt6 和 Git 命令交互的实践项目
 作者: GitHub @424635328
