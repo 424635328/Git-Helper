@@ -31,7 +31,7 @@ jobs:
       - name: Multi-Function Bot Core
         # This step is triggered by pull_request, issues, and issue_comment events
         if: github.event_name == 'pull_request' || github.event_name == 'issues' || github.event_name == 'issue_comment'
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             // The 'github' and 'context' objects are automatically provided by actions/github-script
@@ -309,7 +309,7 @@ jobs:
       # This step handles the scheduled task for closing inactive issues
       - name: Close Inactive Issues (Scheduled)
         if: github.event_name == 'schedule'
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             // github and context objects are automatically provided by actions/github-script
