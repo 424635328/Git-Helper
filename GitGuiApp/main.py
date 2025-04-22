@@ -2,21 +2,19 @@
 import sys
 import logging
 from PyQt6.QtWidgets import QApplication, QMessageBox
-from PyQt6.QtGui import QColor # Import QColor to use in QSS string
-from PyQt6.QtCore import Qt # Import Qt to use in QSS string
+from PyQt6.QtGui import QColor 
+from PyQt6.QtCore import Qt 
 from ui.main_window import MainWindow
 
 # 配置日志记录
 logging.basicConfig(
-    level=logging.DEBUG, # Adjusted to DEBUG for more detailed info during development
+    level=logging.DEBUG, 
     format='%(asctime)s - [%(levelname)s] - %(module)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout), # 输出到控制台
-        # logging.FileHandler("git_gui_app.log", mode='a', encoding='utf-8') # Optional: log to file
     ]
 )
 
-# Define the Cyberpunk style QSS directly as a string
 CYBERPUNK_QSS = """
 /* General Styles */
 QMainWindow, QWidget {
