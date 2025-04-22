@@ -283,7 +283,7 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(QLabel("快捷键组合:"))
         self.shortcut_list_widget = QListWidget()
         self.shortcut_list_widget.setToolTip("双击加载到序列，右键删除")
-        self.shortcut_list_widget.itemDoubleClicked.connect(self._load_shortcut_into_builder)
+        self.shortcut_list_widget.itemDoubleClicked.connect(self.shortcut_manager.execute_shortcut_from_list)
         self.shortcut_list_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.shortcut_list_widget.customContextMenuRequested.connect(self.shortcut_manager.show_shortcut_context_menu)
         left_layout.addWidget(self.shortcut_list_widget, 1)
