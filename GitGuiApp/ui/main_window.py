@@ -251,7 +251,8 @@ class MainWindow(QMainWindow):
         sequence_actions_layout = QHBoxLayout()
         execute_button = QPushButton("执行序列")
         execute_button.setToolTip("执行上方构建的命令序列")
-        execute_button.setStyleSheet("background-color: lightgreen;")
+        execute_button.setStyleSheet("background-color: darkred; color: black;")
+        execute_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         execute_button.clicked.connect(self._execute_sequence)
         self._add_repo_dependent_widget(execute_button)
 
@@ -431,15 +432,6 @@ class MainWindow(QMainWindow):
         self.command_input.setPlaceholderText("输入 Git 命令并按 Enter 直接执行")
         command_font = QFont("Courier New")
         self.command_input.setFont(command_font)
-        # Keeping this specific style embedded for demo, ideally consolidate in QSS
-        # command_input_style = """
-        #     QLineEdit { background-color: #ffffff; border: 1px solid #abadb3; border-radius: 2px; padding: 4px 6px; color: #000000; }
-        #     QLineEdit:focus { border: 1px solid #0078d4; }
-        #     QLineEdit::placeholder { color: #a0a0a0; }
-        #     QLineEdit:disabled { background-color: #f0f0f0; color: #a0a0a0; }
-        # """
-        # Remove or adapt this if global QSS handles QLineEdit fully
-        # self.command_input.setStyleSheet(command_input_style) # Removed to use global QSS
         self.command_input.returnPressed.connect(self._execute_command_from_input)
         self._add_repo_dependent_widget(self.command_input)
 
