@@ -230,7 +230,37 @@ _查看仓库状态示例_
 
 ## 🤝 贡献
 
-[![GitHub Contributors](https://img.shields.io/github/contributors/424635328/Git-Helper.svg)](https://github.com/424635328/Git-Helper/graphs/contributors)
+### ✨ 贡献者
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%">
+        <a href="https://github.com/424635328">
+          <img src="https://avatars.githubusercontent.com/u/424635328?v=4?s=100" width="100px;" alt="424635328"/>
+        </a>
+        <br />
+        <sub><b>424635328</b></sub>
+        <br />
+        <a href="#contribution-type-of-424635328" title="Code">💻</a>
+        <a href="#contribution-type-of-424635328" title="Documentation">📖</a>
+      </td>
+      <!-- 如果还有其他贡献者，他们的条目会放在这里 -->
+      <!-- <td align="center" valign="top" width="14.28%"><a href="https://github.com/另一用户名">...</a></td> -->
+    </tr>
+    <!-- 如果贡献者过多，会自动换行到新的 <tr> -->
+  </tbody>
+</table>
+
+<!-- markdownlint-enable -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+感谢所有让本项目变得更好的贡献者！
 
 非常欢迎社区的贡献！如果您有改进意见、发现 Bug 或想添加新功能，请随时提交 Issue 或 Pull Request。
 
