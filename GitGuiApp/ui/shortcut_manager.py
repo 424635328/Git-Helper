@@ -9,7 +9,6 @@ from PyQt6.QtCore import Qt, pyqtSlot
 try:
     from .dialogs import ShortcutDialog
 except ImportError:
-    # Fallback for potential direct execution or different import contexts
     from dialogs import ShortcutDialog
 
 

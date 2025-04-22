@@ -1453,7 +1453,6 @@ class MainWindow(QMainWindow):
                  email_result = self.git_handler.execute_command_sync(["git", "config", "--global", "user.email"])
                  current_name = name_result.stdout.strip() if name_result and name_result.returncode == 0 else ""
                  current_email = email_result.stdout.strip() if email_result and email_result.returncode == 0 else ""
-                 # dialog.set_data({"user.name": current_name, "user.email": current_email}) # This method doesn't exist in SettingsDialog
                  dialog.name_edit.setText(current_name)
                  dialog.email_edit.setText(current_email)
             except Exception as e:
