@@ -243,8 +243,7 @@ _查看仓库状态示例_
         <a href="https://github.com/424635328">
           <img src="https://avatars.githubusercontent.com/u/133365865?v=4"
                width="50px;"
-               alt="424635328"
-               style="border-radius: 50%;"/>
+               alt="424635328"/>
         </a>
       </td>
       <!-- 如果还有其他贡献者，他们的条目会放在这里 -->
