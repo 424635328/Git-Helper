@@ -808,7 +808,7 @@ class MainWindow(QMainWindow):
             "- 列出分支/远程仓库\n"
             "- 切换分支 (通过名称输入)\n"
             "- 配置全局 user.name/user.email\n\n"
-            "作者: AI"
+            "作者: 424635328"
         )
 
     def closeEvent(self, event):
