@@ -105,15 +105,15 @@ class MainWindow(QMainWindow):
         self._add_command_button(command_buttons_layout_1, "Status", "添加 'git status' 到序列", lambda: self._add_command_to_sequence("git status"))
         # Add .: 将 "git add ." 添加到序列
         self._add_command_button(command_buttons_layout_1, "Add .", "添加 'git add .' 到序列", lambda: self._add_command_to_sequence("git add ."))
-        # Add...: 保留直接执行 (需要对话框)
-        self._add_command_button(command_buttons_layout_1, "Add...", "暂存选中文件 (直接执行)", self._add_files)
+        # Add...: 将 "git add ..." 添加到序列 (需要对话框)
+        self._add_command_button(command_buttons_layout_1, "Add...", "添加 'git add <文件>' 到序列", self._add_files_to_sequence)
         left_layout.addLayout(command_buttons_layout_1)
 
         command_buttons_layout_2 = QHBoxLayout()
-        # Commit...: 保留直接执行 (需要对话框)
-        self._add_command_button(command_buttons_layout_2, "Commit...", "提交暂存更改 (直接执行)", self._add_commit)
-        # Commit -a...: 保留直接执行 (需要对话框)
-        self._add_command_button(command_buttons_layout_2, "Commit -a...", "暂存所有已跟踪文件并提交 (直接执行)", self._add_commit_am)
+        # Commit...: 将 "git commit -m ..." 添加到序列 (需要对话框)
+        self._add_command_button(command_buttons_layout_2, "Commit...", "添加 'git commit -m <msg>' 到序列", self._add_commit_to_sequence)
+        # Commit -a...: 将 "git commit -am ..." 添加到序列 (需要对话框)
+        self._add_command_button(command_buttons_layout_2, "Commit -a...", "添加 'git commit -am <msg>' 到序列", self._add_commit_am_to_sequence)
         # Log: 保留直接刷新日志视图
         self._add_command_button(command_buttons_layout_2, "Log", "刷新提交历史视图 (Tab)", self._refresh_log_view)
         left_layout.addLayout(command_buttons_layout_2)
@@ -760,20 +760,19 @@ class MainWindow(QMainWindow):
                  self._update_repo_status()
 
 
-    # --- 命令按钮槽 ---
-    def _add_files(self):
-        """弹出对话框让用户输入要暂存的文件/目录 (直接执行)"""
-        if not self.git_handler or not self.git_handler.is_valid_repo(): QMessageBox.warning(self, "操作无效", "请先选择一个有效的 Git 仓库。"); return
+    # --- Command Button Slots ---
+    def _add_files_to_sequence(self):
+        """弹出对话框让用户输入要暂存的文件/目录，并将其添加到序列"""
+        if not self.git_handler or not self.git_handler.is_valid_repo(): QMessageBox.warning(self, "操作无效", "请先选择一个有效的 Git 仓库."); return
         files_str, ok = QInputDialog.getText(self, "暂存文件", "输入要暂存的文件或目录 (用空格分隔，可用引号):", QLineEdit.EchoMode.Normal)
         if ok and files_str:
             try:
                 # 安全地将输入字符串分割成文件路径列表
                 file_list = shlex.split(files_str.strip())
                 if file_list:
-                    # 将 'add' 命令和指定的文件添加到序列并执行
-                    commands = [f"git add -- {shlex.quote(part)}" for part in file_list]
-                    # 通过列表执行器直接执行这些命令
-                    self._run_command_list_sequentially(commands)
+                    # 为每个文件构建 add 命令并添加到序列
+                    for file_path in file_list:
+                         self._add_command_to_sequence(f"git add -- {shlex.quote(file_path)}")
                 else:
                     QMessageBox.information(self, "无操作", "未输入文件。")
             except ValueError as e:
@@ -782,25 +781,26 @@ class MainWindow(QMainWindow):
         elif ok:
             QMessageBox.information(self, "无操作", "未输入文件。")
 
-    def _add_commit(self):
-        """弹出对话框获取提交信息并执行 git commit -m (直接执行)"""
-        if not self.git_handler or not self.git_handler.is_valid_repo(): QMessageBox.warning(self, "操作无效", "请先选择一个有效的 Git 仓库。"); return
+    def _add_commit_to_sequence(self):
+        """弹出对话框获取提交信息，并将 git commit -m 命令添加到序列"""
+        if not self.git_handler or not self.git_handler.is_valid_repo(): QMessageBox.warning(self, "操作无效", "请先选择一个有效的 Git 仓库."); return
         commit_msg, ok = QInputDialog.getText(self, "提交暂存的更改", "输入提交信息:", QLineEdit.EchoMode.Normal)
         if ok and commit_msg:
-            # 直接执行 commit 命令
-            self._run_command_list_sequentially([f"git commit -m {shlex.quote(commit_msg.strip())}"])
+            # 将 commit 命令添加到序列
+            self._add_command_to_sequence(f"git commit -m {shlex.quote(commit_msg.strip())}")
         elif ok and not commit_msg: QMessageBox.warning(self, "提交中止", "提交信息不能为空。")
 
-    def _add_commit_am(self):
-        """弹出对话框获取提交信息并执行 git commit -am (直接执行)"""
-        if not self.git_handler or not self.git_handler.is_valid_repo(): QMessageBox.warning(self, "操作无效", "请先选择一个有效的 Git 仓库。"); return
+    def _add_commit_am_to_sequence(self):
+        """弹出对话框获取提交信息，并将 git commit -am 命令添加到序列"""
+        if not self.git_handler or not self.git_handler.is_valid_repo(): QMessageBox.warning(self, "操作无效", "请先选择一个有效的 Git 仓库."); return
         commit_msg, ok = QInputDialog.getText(self, "暂存所有已跟踪文件并提交", "输入提交信息:", QLineEdit.EchoMode.Normal)
         if ok and commit_msg:
-            # 直接执行 commit 命令
-            self._run_command_list_sequentially([f"git commit -am {shlex.quote(commit_msg.strip())}"])
+            # 将 commit -am 命令添加到序列
+            self._add_command_to_sequence(f"git commit -am {shlex.quote(commit_msg.strip())}")
         elif ok and not commit_msg: QMessageBox.warning(self, "提交中止", "提交信息不能为空。")
 
-    # --- 序列操作 ---
+
+    # --- Sequence Operations ---
     def _update_sequence_display(self):
         """更新命令序列构建器显示区域"""
         if self.sequence_display: self.sequence_display.setText("\n".join(self.current_command_sequence))
@@ -814,22 +814,22 @@ class MainWindow(QMainWindow):
 
     def _execute_sequence(self):
         """执行命令序列构建器中的命令"""
-        if not self.git_handler or not self.git_handler.is_valid_repo(): QMessageBox.critical(self, "错误", "仓库无效，无法执行序列。"); return
-        if not self.current_command_sequence: QMessageBox.information(self, "提示", "命令序列为空，无需执行。"); return
+        if not self.git_handler or not self.git_handler.is_valid_repo(): QMessageBox.critical(self, "错误", "仓库无效，无法执行序列."); return
+        if not self.current_command_sequence: QMessageBox.information(self, "提示", "命令序列为空，无需执行."); return
         sequence_to_run = list(self.current_command_sequence) # 复制
         logging.info(f"准备执行构建的序列: {sequence_to_run}")
         self._run_command_list_sequentially(sequence_to_run)
         # 序列构建器将在序列执行成功后在 _run_command_list_sequentially 中清空
-        # 或者您可能希望在这里 *在* 执行之前清空它:
+        # Or you might want to clear it here *before* execution:
         # self.current_command_sequence = []
         # self._update_sequence_display()
 
 
-    # --- 核心命令执行逻辑 ---
+    # --- Core Command Execution Logic ---
     def _run_command_list_sequentially(self, command_strings: list[str], refresh_on_success=True):
         """按顺序执行一列表 Git 命令字符串。"""
         if not self.git_handler: logging.error("GitHandler 不可用。"); QMessageBox.critical(self, "内部错误", "Git 处理程序丢失。"); return
-        if not self.git_handler.is_valid_repo(): logging.error("尝试在无效仓库中执行命令列表。"); QMessageBox.critical(self, "错误", "仓库无效，操作中止。"); return
+        if not self.git_handler.is_valid_repo(): logging.error("尝试在无效仓库中执行命令列表。"); QMessageBox.critical(self, "错误", "仓库无效，操作中止."); return
 
         logging.debug(f"准备执行命令列表: {command_strings}, 成功后刷新: {refresh_on_success}")
 
@@ -1030,18 +1030,18 @@ class MainWindow(QMainWindow):
 
     # --- 状态视图操作 ---
     @pyqtSlot()
-    def _stage_all(self): # 直接执行
+    def _stage_all(self): # Direct Execution
         logging.info("请求暂存所有更改 (git add .)"); self._execute_command_if_valid_repo(["git", "add", "."])
     @pyqtSlot()
-    def _unstage_all(self): # 直接执行
-        if self.status_tree_model and self.status_tree_model.staged_root.rowCount() == 0: QMessageBox.information(self, "无操作", "没有已暂存的文件可供撤销。"); return
+    def _unstage_all(self): # Direct Execution
+        if self.status_tree_model and self.status_tree_model.staged_root.rowCount() == 0: QMessageBox.information(self, "无操作", "没有已暂存的文件可供撤销."); return
         logging.info("请求撤销全部暂存 (git reset HEAD --)"); self._execute_command_if_valid_repo(["git", "reset", "HEAD", "--"])
-    def _stage_files(self, files: list[str]): # 直接执行 - 由上下文菜单使用
+    def _stage_files(self, files: list[str]): # Direct Execution - used by context menu
         if not files: return; logging.info(f"请求暂存特定文件: {files}"); self._execute_command_if_valid_repo(["git", "add", "--"] + files)
-    def _unstage_files(self, files: list[str]): # 直接执行 - 由上下文菜单使用
+    def _unstage_files(self, files: list[str]): # Direct Execution - used by context menu
         if not files: return; logging.info(f"请求撤销暂存特定文件: {files}"); self._execute_command_if_valid_repo(["git", "reset", "HEAD", "--"] + files)
 
-    # --- 状态视图上下文菜单 ---
+    # --- Status View Context Menu ---
     @pyqtSlot(QPoint)
     def _show_status_context_menu(self, pos):
         """显示状态树视图的右键上下文菜单"""
@@ -1049,9 +1049,9 @@ class MainWindow(QMainWindow):
         index = self.status_tree_view.indexAt(pos)
         if not index.isValid(): return
 
-        # 基于模型获取选中的文件，而不仅仅是点击的索引
+        # 根据模型获取选中的文件，而不仅仅是点击的索引
         selected_indexes = self.status_tree_view.selectionModel().selectedIndexes()
-        if not selected_indexes: return # 如果 indexAt(pos) 有效并且是选择的一部分，则不应该发生，但为了安全起见进行检查
+        if not selected_indexes: return # should not happen if indexAt(pos) is valid and is part of selection, but safety check
         # 过滤每个选中行的第一列项，以避免重复
         unique_selected_rows = set()
         for sel_index in selected_indexes:
@@ -1063,15 +1063,15 @@ class MainWindow(QMainWindow):
         files_to_unstage = selected_files_data.get(STATUS_STAGED, [])
         if files_to_unstage: unstage_action = QAction("撤销暂存选中项 (-)", self); unstage_action.triggered.connect(self._unstage_selected_files); menu.addAction(unstage_action); added_action = True
 
-        # 添加将命令添加到序列的上下文菜单操作
+        # Add context menu actions for commands that add to sequence
         if added_action: menu.addSeparator()
 
-        # 示例: 添加到序列操作
-        # 注意: 这些会将 *通用* 命令添加到序列，而不是容易添加特定文件的命令
-        # 以后如果需要，可以添加特定于上下文的序列添加操作。
+        # Example: Add to sequence actions
+        # Note: These would add *generic* commands to sequence, not file-specific ones easily
+        # Maybe add context-specific sequence additions later if needed.
 
         if added_action: menu.exec(self.status_tree_view.viewport().mapToGlobal(pos))
-        else: logging.debug("所选状态项没有适用的操作。")
+        else: logging.debug("No applicable actions for selected status items.")
 
 
     @pyqtSlot()
@@ -1086,14 +1086,14 @@ class MainWindow(QMainWindow):
              unique_selected_rows.add(self.status_tree_model.index(sel_index.row(), 0, sel_index.parent()))
 
         selected_files_data = self.status_tree_model.get_selected_files(list(unique_selected_rows))
-        files_to_stage = list(set(selected_files_data.get(STATUS_UNSTAGED, []) + selected_files_data.get(STATUS_UNTRACKED, []))) # 使用集合处理树结构复杂时可能出现的重复项
+        files_to_stage = list(set(selected_files_data.get(STATUS_UNSTAGED, []) + selected_files_data.get(STATUS_UNTRACKED, []))) # Use set to handle potential duplicates if tree structure is complex
 
         if files_to_stage:
-            # 为每个文件构建命令并运行序列
+            # Build commands for each file and run sequence
             commands = [f"git add -- {shlex.quote(f)}" for f in files_to_stage]
             self._run_command_list_sequentially(commands)
         else:
-            logging.debug("调用了暂存选中，但没有找到未暂存/未跟踪的文件。")
+            logging.debug("Stage selected called, but no unstaged/untracked files found.")
             QMessageBox.information(self, "无操作", "没有选中的未暂存或未跟踪文件可供暂存。")
 
 
@@ -1109,35 +1109,35 @@ class MainWindow(QMainWindow):
              unique_selected_rows.add(self.status_tree_model.index(sel_index.row(), 0, sel_index.parent()))
 
         selected_files_data = self.status_tree_model.get_selected_files(list(unique_selected_rows))
-        files_to_unstage = list(set(selected_files_data.get(STATUS_STAGED, []))) # 使用集合
+        files_to_unstage = list(set(selected_files_data.get(STATUS_STAGED, []))) # Use set
 
         if files_to_unstage:
-             # 为每个文件构建命令并运行序列
+             # Build commands for each file and run sequence
             commands = [f"git reset HEAD -- {shlex.quote(f)}" for f in files_to_unstage]
             self._run_command_list_sequentially(commands)
         else:
-            logging.debug("调用了撤销暂存选中，但没有找到已暂存的文件。")
+            logging.debug("Unstage selected called, but no staged files found.")
             QMessageBox.information(self, "无操作", "没有选中的已暂存文件可供撤销暂存。")
 
-    # --- 状态视图选择变化 ---
+    # --- Status View Selection Change ---
     @pyqtSlot(QItemSelection, QItemSelection)
     def _status_selection_changed(self, selected: QItemSelection, deselected: QItemSelection):
         """当状态树中的选择发生变化时，尝试加载并显示差异"""
         if not self.status_tree_view or not self.status_tree_model or not self.diff_text_edit: return
 
-        self.diff_text_edit.clear() # 始终在选择变化时清空
+        self.diff_text_edit.clear() # Always clear on selection change
         selected_indexes = self.status_tree_view.selectionModel().selectedIndexes()
 
         if not selected_indexes:
             self.diff_text_edit.setPlaceholderText("选中已更改的文件以查看差异...");
             return
 
-        # 检查是否 *只有* 一个项目 (表示一个文件行) 被选中 (跨所有列)
-        # 每行选中的第一列索引是唯一行选择的最佳指示符
+        # Check if *only one* item (representing a file row) is selected across all columns
+        # The first column index for each selected row is the best indicator of a unique row selection
         unique_selected_rows = set()
         for index in selected_indexes:
              if index.isValid() and index.parent().isValid():
-                 # 获取第一列 (文件名项) 的索引
+                 # Get the index for the first column (the file name item)
                  first_col_index = self.status_tree_model.index(index.row(), 0, index.parent())
                  unique_selected_rows.add(first_col_index)
 
@@ -1145,38 +1145,38 @@ class MainWindow(QMainWindow):
             self.diff_text_edit.setPlaceholderText("请选择单个文件以查看差异...");
             return
 
-        # 获取单个选中行的文件路径和状态类型
+        # Get the single selected row's file path and status type
         first_row_index = list(unique_selected_rows)[0]
-        path_item_index = self.status_tree_model.index(first_row_index.row(), 1, first_row_index.parent()) # 路径在列 1
+        path_item_index = self.status_tree_model.index(first_row_index.row(), 1, first_row_index.parent()) # Path is in column 1
         path_item = self.status_tree_model.itemFromIndex(path_item_index)
 
         if not path_item:
-            logging.warning("找不到所选状态行的路径项。");
+            logging.warning("Could not find path item for selected status row.");
             self.diff_text_edit.setPlaceholderText("无法获取文件路径...");
             return
 
-        file_path = path_item.data(Qt.ItemDataRole.UserRole + 1); # UserRole + 1 存储完整路径
+        file_path = path_item.data(Qt.ItemDataRole.UserRole + 1); # UserRole + 1 holds the full path
         parent_item = path_item.parent()
         if not parent_item:
-             logging.warning("文件路径项没有父项。");
+             logging.warning("File path item has no parent.");
              self.diff_text_edit.setPlaceholderText("无法确定文件状态...");
              return
 
-        section_type = parent_item.data(Qt.ItemDataRole.UserRole); # UserRole 存储章节类型 (STAGED, UNSTAGED, UNTRACKED)
+        section_type = parent_item.data(Qt.ItemDataRole.UserRole); # UserRole holds the section type (STAGED, UNSTAGED, UNTRACKED)
 
         if not file_path:
-            logging.warning("文件路径数据丢失。");
+            logging.warning("File path data missing.");
             self.diff_text_edit.setPlaceholderText("无法获取文件路径...");
             return
 
-        # 单独处理未跟踪文件，因为与仓库历史的差异没有意义
+        # Handle untracked files separately as diff makes no sense against repo history
         if section_type == STATUS_UNTRACKED:
             self.diff_text_edit.setText(f"'{file_path}' 是未跟踪的文件。\n\n无法显示与仓库的差异。")
-            self.diff_text_edit.setPlaceholderText("") # 设置文本后清空占位符
+            self.diff_text_edit.setPlaceholderText("") # Clear placeholder once text is set
         elif self.git_handler:
             staged_diff = (section_type == STATUS_STAGED)
             self.diff_text_edit.setPlaceholderText(f"正在加载 '{os.path.basename(file_path)}' 的差异...");
-            QApplication.processEvents() # 立即更新 UI
+            QApplication.processEvents() # Update UI immediately
             self.git_handler.get_diff_async(file_path, staged=staged_diff, finished_slot=self._on_diff_received)
         else:
             self.diff_text_edit.setText("❌ 内部错误：Git 处理程序不可用。")
@@ -1188,17 +1188,17 @@ class MainWindow(QMainWindow):
         """处理异步 git diff 的结果，并进行格式化显示"""
         if not self.diff_text_edit: return
 
-        self.diff_text_edit.setPlaceholderText("") # 清空加载占位符
+        self.diff_text_edit.setPlaceholderText("") # Clear loading placeholder
 
         if return_code == 0:
             if stdout.strip():
-                self._display_formatted_diff(stdout) # 调用新的辅助方法进行格式化
+                self._display_formatted_diff(stdout) # Call the new helper for formatting
             else:
-                self.diff_text_edit.setText("文件无差异。") # 如果差异为空则设置简单文本
+                self.diff_text_edit.setText("文件无差异。") # Set simple text if diff is empty
         else:
             error_message = f"❌ 获取差异失败:\n{stderr}"
-            self.diff_text_edit.setText(error_message) # 直接设置错误文本
-            logging.error(f"Git diff 失败: 返回码={return_code}, 错误:{stderr}")
+            self.diff_text_edit.setText(error_message) # Set error text directly
+            logging.error(f"Git diff failed: RC={return_code}, Err:{stderr}")
 
     def _display_formatted_diff(self, diff_text: str):
         """格式化显示差异内容，高亮增减行"""
@@ -1206,10 +1206,10 @@ class MainWindow(QMainWindow):
 
         self.diff_text_edit.clear()
         cursor = self.diff_text_edit.textCursor()
-        # 获取默认格式作为其他格式的基础
+        # Get default format to base others on
         default_format = self.diff_text_edit.currentCharFormat()
 
-        # 定义用于高亮的格式
+        # Define formats for highlighting
         add_format = QTextCharFormat(default_format)
         add_format.setForeground(QColor("darkGreen"))
 
@@ -1217,64 +1217,64 @@ class MainWindow(QMainWindow):
         del_format.setForeground(QColor("red"))
 
         header_format = QTextCharFormat(default_format)
-        header_format.setForeground(QColor("gray")) # 对头部行使用灰色
+        header_format.setForeground(QColor("gray")) # Use gray for header lines
 
-        # 确保差异视图使用等宽字体
+        # Ensure diff view uses a monospace font
         monospace_font = QFont("Courier New")
         self.diff_text_edit.setFont(monospace_font)
 
-        # 逐行处理
+        # Process line by line
         lines = diff_text.splitlines()
         for line in lines:
             fmt_to_apply = default_format
 
-            # 检查行前缀以进行格式化
+            # Check line prefixes for formatting
             if line.startswith('diff ') or line.startswith('index ') or line.startswith('---') or line.startswith('+++') or line.startswith('@@ '):
                 fmt_to_apply = header_format
             elif line.startswith('+'):
                 fmt_to_apply = add_format
             elif line.startswith('-'):
                 fmt_to_apply = del_format
-            # 不以这些前缀开头的行将使用 default_format
+            # Lines not starting with these prefixes will use the default_format
 
-            # 应用格式并插入文本
+            # Apply format and insert text
             cursor.insertText(line, fmt_to_apply)
-            cursor.insertText("\n", default_format) # 确保换行符获得默认格式
+            cursor.insertText("\n", default_format) # Ensure newline character gets default format
 
-        # 插入所有文本后将光标移动到开始位置
+        # Move cursor to the start after adding all text
         cursor.movePosition(QTextCursor.MoveOperation.Start)
         self.diff_text_edit.setTextCursor(cursor)
-        self.diff_text_edit.ensureCursorVisible() # 滚动到顶部
+        self.diff_text_edit.ensureCursorVisible() # Scroll to the top
 
-    # --- 分支列表操作 ---
+    # --- Branch List Actions ---
     @pyqtSlot(QListWidgetItem)
-    def _branch_double_clicked(self, item: QListWidgetItem): # 直接执行
+    def _branch_double_clicked(self, item: QListWidgetItem): # Direct Execution
         if not item or not self.git_handler or not self.git_handler.is_valid_repo(): return
         branch_name = item.text().strip();
         if branch_name.startswith("remotes/"): QMessageBox.information(self, "操作无效", f"不能直接切换到远程跟踪分支 '{branch_name}'。"); return
         if item.font().bold():
-             logging.info(f"已在分支 '{branch_name}'。");
+             logging.info(f"Already on branch '{branch_name}'.");
              if self.status_bar: self.status_bar.showMessage(f"已在分支 '{branch_name}'", 2000);
              return
         reply = QMessageBox.question(self, "切换分支", f"确定要切换到本地分支 '{branch_name}' 吗？\n\n未提交的更改将会被携带。", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Yes)
         if reply == QMessageBox.StandardButton.Yes:
              logging.info(f"请求切换到分支: {branch_name}")
-             # 使用 run_command_list_sequentially
+             # Use run_command_list_sequentially
              self._run_command_list_sequentially([f"git checkout {shlex.quote(branch_name)}"])
 
 
     @pyqtSlot()
-    def _create_branch_dialog(self): # 直接执行
+    def _create_branch_dialog(self): # Direct Execution
         if not self.git_handler or not self.git_handler.is_valid_repo(): QMessageBox.warning(self, "操作无效", "请先选择一个有效的 Git 仓库。"); return
         branch_name, ok = QInputDialog.getText(self, "创建新分支", "输入新分支的名称:", QLineEdit.EchoMode.Normal)
         if ok and branch_name:
             clean_name = branch_name.strip();
-            # 对分支名称进行基本验证
+            # Basic validation for branch names
             if not clean_name or re.search(r'[\s\~\^\:\?\*\[\\@\{]', clean_name):
                  QMessageBox.warning(self, "创建失败", "分支名称无效。\n\n分支名称不能包含空格或特殊字符如 ~^:?*[\\@{。")
                  return
             logging.info(f"请求创建新分支: {clean_name}");
-            # 使用 run_command_list_sequentially
+            # Use run_command_list_sequentially
             self._run_command_list_sequentially([f"git branch {shlex.quote(clean_name)}"])
         elif ok:
             QMessageBox.warning(self, "创建失败", "分支名称不能为空。")
@@ -1288,7 +1288,7 @@ class MainWindow(QMainWindow):
         if not item: return
         menu = QMenu(); branch_name = item.text().strip(); is_remote = branch_name.startswith("remotes/"); is_current = item.font().bold(); added_action = False
 
-        # 本地分支操作
+        # Actions for local branches
         if not is_current and not is_remote:
             checkout_action = QAction(f"切换到 '{branch_name}'", self)
             checkout_action.triggered.connect(lambda checked=False, b=branch_name: self._run_command_list_sequentially([f"git checkout {shlex.quote(b)}"]))
@@ -1298,42 +1298,42 @@ class MainWindow(QMainWindow):
             delete_action.triggered.connect(lambda checked=False, b=branch_name: self._delete_branch_dialog(b))
             menu.addAction(delete_action); added_action = True
 
-        # 远程分支操作
+        # Actions for remote branches
         if is_remote:
              remote_parts = branch_name.split('/', 2);
              if len(remote_parts) == 3:
                  remote_name = remote_parts[1];
                  remote_branch_name = remote_parts[2];
-                 # 基于远程分支检出为新的本地分支选项
+                 # Option to checkout remote branch into a new local branch
                  checkout_remote_action = QAction(f"基于 '{branch_name}' 创建并切换到本地分支...", self)
-                 checkout_remote_action.triggered.connect(lambda checked=False, rbn=remote_branch_name: self._create_and_checkout_branch_from_dialog(rbn, branch_name)) # 传递建议的名称和远程引用
+                 checkout_remote_action.triggered.connect(lambda checked=False, rbn=remote_branch_name: self._create_and_checkout_branch_from_dialog(rbn, branch_name)) # Pass suggest name and remote ref
                  menu.addAction(checkout_remote_action); added_action = True
 
-                 # 删除远程分支选项
+                 # Option to delete remote branch
                  delete_remote_action = QAction(f"删除远程分支 '{remote_name}/{remote_branch_name}'...", self)
                  delete_remote_action.triggered.connect(lambda checked=False, rn=remote_name, rbn=remote_branch_name: self._delete_remote_branch_dialog(rn, rbn))
                  menu.addAction(delete_remote_action); added_action = True
 
         if added_action: menu.exec(self.branch_list_widget.mapToGlobal(pos))
-        else: logging.debug(f"分支项目没有适用的上下文操作: {branch_name}")
+        else: logging.debug(f"No applicable context actions for branch item: {branch_name}")
 
-    def _delete_branch_dialog(self, branch_name: str): # 直接执行
-        if not branch_name or branch_name.startswith("remotes/"): logging.error(f"删除的本地分支名称无效: {branch_name}"); return
+    def _delete_branch_dialog(self, branch_name: str): # Direct Execution
+        if not branch_name or branch_name.startswith("remotes/"): logging.error(f"Invalid local branch name for deletion: {branch_name}"); return
         reply = QMessageBox.warning(self, "确认删除本地分支", f"确定要删除本地分支 '{branch_name}' 吗？\n\n此操作通常不可撤销！", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Cancel)
         if reply == QMessageBox.StandardButton.Yes:
-             logging.info(f"请求删除本地分支: {branch_name} (使用 -d)")
-             # 使用 run_command_list_sequentially
+             logging.info(f"请求删除本地分支: {branch_name} (using -d)")
+             # Use run_command_list_sequentially
              self._run_command_list_sequentially([f"git branch -d {shlex.quote(branch_name)}"])
 
-    def _delete_remote_branch_dialog(self, remote_name: str, branch_name: str): # 直接执行
-        if not remote_name or not branch_name: logging.error(f"删除的远程/分支名称无效: {remote_name}/{branch_name}"); return
+    def _delete_remote_branch_dialog(self, remote_name: str, branch_name: str): # Direct Execution
+        if not remote_name or not branch_name: logging.error(f"Invalid remote/branch name for deletion: {remote_name}/{branch_name}"); return
         reply = QMessageBox.warning(self, "确认删除远程分支", f"确定要从远程仓库 '{remote_name}' 删除分支 '{branch_name}' 吗？\n\n将执行: git push {remote_name} --delete {branch_name}\n\n此操作通常不可撤销！", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Cancel)
         if reply == QMessageBox.StandardButton.Yes:
             logging.info(f"请求删除远程分支: {remote_name}/{branch_name}")
-            # 使用 run_command_list_sequentially
+            # Use run_command_list_sequentially
             self._run_command_list_sequentially([f"git push {shlex.quote(remote_name)} --delete {shlex.quote(branch_name)}"])
 
-    def _create_and_checkout_branch_from_dialog(self, suggest_name: str, start_point: str): # 直接执行
+    def _create_and_checkout_branch_from_dialog(self, suggest_name: str, start_point: str): # Direct Execution
          if not self.git_handler or not self.git_handler.is_valid_repo(): QMessageBox.warning(self, "操作无效", "请先选择一个有效的 Git 仓库。"); return
          branch_name, ok = QInputDialog.getText(self, "创建并切换本地分支", f"输入新本地分支的名称 (基于 '{start_point}'):", QLineEdit.EchoMode.Normal, suggest_name)
          if ok and branch_name:
@@ -1342,46 +1342,46 @@ class MainWindow(QMainWindow):
                  QMessageBox.warning(self, "操作失败", "分支名称无效。\n\n分支名称不能包含空格或特殊字符如 ~^:?*[\\@{。")
                  return
             logging.info(f"请求创建并切换到分支: {clean_name} (基于 {start_point})");
-            # 使用 run_command_list_sequentially 执行组合命令
+            # Use run_command_list_sequentially for combined command
             self._run_command_list_sequentially([f"git checkout -b {shlex.quote(clean_name)} {shlex.quote(start_point)}"])
          elif ok:
             QMessageBox.warning(self, "操作取消", "分支名称不能为空。")
 
 
-    # --- 日志视图操作 ---
+    # --- Log View Actions ---
     @pyqtSlot()
     def _log_selection_changed(self):
         """当日志表格中的选择发生变化时，加载并显示 Commit 详情"""
         if not self.log_table_widget or not self.commit_details_textedit or not self.git_handler: return
         selected_items = self.log_table_widget.selectedItems();
-        self.commit_details_textedit.clear() # 始终在选择变化时清空
+        self.commit_details_textedit.clear() # Always clear on selection change
 
         if not selected_items:
              self.commit_details_textedit.setPlaceholderText("选中上方提交记录以查看详情...");
              return
 
-        # 获取选中行的索引。可能选中多行，但只显示第一行的详情。
+        # Get the selected row index. Multiple rows might be selected, but we only show details for the first one.
         selected_row = self.log_table_widget.currentRow();
-        if selected_row < 0: # 此检查可能因 selectedItems 而冗余，但更安全
+        if selected_row < 0: # This check might be redundant due to selectedItems, but safe
              self.commit_details_textedit.setPlaceholderText("请选择一个提交记录。"); return
 
-        hash_item = self.log_table_widget.item(selected_row, 0); # Commit 哈希在第一列
+        hash_item = self.log_table_widget.item(selected_row, 0); # Commit hash is in the first column
         if hash_item:
-            # 优先使用 UserRole 中存储的数据，必要时回退到文本
+            # Prefer data stored in UserRole, fallback to text if necessary
             commit_hash = hash_item.data(Qt.ItemDataRole.UserRole)
             if not commit_hash:
                 commit_hash = hash_item.text().strip()
-                logging.warning(f"提交哈希项行 {selected_row} 缺少 UserRole，使用文本: {commit_hash}")
+                logging.warning(f"Commit hash item row {selected_row} missing UserRole, using text: {commit_hash}")
 
             if commit_hash:
-                logging.debug(f"日志选择变化，正在请求提交详情: {commit_hash}")
+                logging.debug(f"Log selection changed, requesting details for commit: {commit_hash}")
                 self.commit_details_textedit.setPlaceholderText(f"正在加载 Commit '{commit_hash[:7]}...' 的详情...");
-                QApplication.processEvents() # 立即更新 UI
-                # 使用 git show 获取提交详情和差异
+                QApplication.processEvents() # Update UI immediately
+                # Use git show to get commit details and diff
                 self.git_handler.execute_command_async(["git", "show", shlex.quote(commit_hash)], self._on_commit_details_received)
             else:
                 self.commit_details_textedit.setPlaceholderText("无法获取选中提交的 Hash.");
-                logging.error(f"无法从表格项获取有效 Hash (行: {selected_row})。")
+                logging.error(f"无法从表格项获取有效 Hash (Row: {selected_row}).")
         else:
             self.commit_details_textedit.setPlaceholderText("无法确定选中的提交项.");
             logging.error(f"无法在日志表格中找到行 {selected_row} 的第 0 列项。")
@@ -1391,38 +1391,38 @@ class MainWindow(QMainWindow):
     def _on_commit_details_received(self, return_code, stdout, stderr):
         """处理异步 git show (commit details) 的结果"""
         if not self.commit_details_textedit: return
-        self.commit_details_textedit.setPlaceholderText(""); # 清空加载占位符
+        self.commit_details_textedit.setPlaceholderText(""); # Clear loading placeholder
 
         if return_code == 0:
             if stdout.strip():
-                # 在提交详情视图中显示详情
+                # Display details in the commit details view
                 self.commit_details_textedit.setText(stdout)
             else:
                  self.commit_details_textedit.setText("未获取到提交详情。")
         else:
             error_message = f"❌ 获取提交详情失败:\n{stderr}"
             self.commit_details_textedit.setText(error_message)
-            logging.error(f"获取 Commit 详情失败: 返回码={return_code}, 错误: {stderr}")
+            logging.error(f"获取 Commit 详情失败: RC={return_code}, Error: {stderr}")
 
-        # 注意: Git show 的输出包含差异。我们可以在这里解析它，并可能更新差异标签页，
-        # 但当前的设计仅将差异标签页链接到状态更改。
-        # 为了简单起见，我们将提交详情和差异分开显示，基于用户的交互 (选择日志 vs 选择状态)。
+        # Note: Git show output includes diff. We could parse it here and maybe update the diff tab too,
+        # but the current design links diff tab only to status changes.
+        # For simplicity, we'll keep commit details and diff separate based on user interaction (select log vs select status).
 
 
-    # --- 直接操作槽 ---
-    # 这些方法现在构建命令并调用序列执行器
+    # --- Direct Action Slots ---
+    # These methods now build commands and call the sequential runner
     def _execute_command_if_valid_repo(self, command_list: list[str], refresh=True):
         """检查仓库是否有效，如果有效则执行命令列表 (直接执行)"""
-        # 此辅助方法现在只包装 _run_command_list_sequentially
+        # This helper now just wraps _run_command_list_sequentially
         if not self.git_handler or not self.git_handler.is_valid_repo():
              QMessageBox.warning(self, "操作无效", "请先选择一个有效的 Git 仓库。");
              return
-        # 将 command_list 转换为适合执行器的字符串列表
+        # Convert command_list to a list of strings suitable for the runner
         command_strings = [' '.join(shlex.quote(part) for part in cmd) if isinstance(cmd, list) else cmd for cmd in command_list]
         self._run_command_list_sequentially(command_strings, refresh_on_success=refresh)
 
 
-    def _run_switch_branch(self): # 直接执行 (对话框)
+    def _run_switch_branch(self): # Direct Execution (Dialog)
         if not self.git_handler or not self.git_handler.is_valid_repo(): QMessageBox.warning(self, "操作无效", "仓库无效。"); return
         branch_name, ok = QInputDialog.getText(self,"切换分支","输入要切换到的本地分支名称:",QLineEdit.EchoMode.Normal)
         if ok and branch_name:
@@ -1435,28 +1435,28 @@ class MainWindow(QMainWindow):
 
 
     def _run_list_remotes(self):
-        # 这个操作很简单，不需要复杂的序列，但为了保持一致性，使用执行器
-        self._execute_command_if_valid_repo(["git", "remote", "-v"], refresh=False) # 直接执行
+        # This action is simple and doesn't need complex sequence, but use the runner for consistency
+        self._execute_command_if_valid_repo(["git", "remote", "-v"], refresh=False) # Direct Execution
 
 
-    # --- 设置对话框槽 ---
+    # --- Settings Dialog Slot ---
     def _open_settings_dialog(self):
         """打开全局 Git 配置对话框"""
         dialog = SettingsDialog(self)
-        # 获取当前的全局配置以预填充对话框
+        # Fetch current global config to pre-populate the dialog
         if self.git_handler:
             try:
-                 # 可以使用临时同步调用或专门的异步调用
-                 # 为了简单起见，这里假设快速同步调用对于配置是可以接受的
-                 # 更好的方法可能是像处理日志/状态刷新那样处理异步调用
+                 # Use a temporary sync call or a dedicated async call for this
+                 # For simplicity here, let's assume a quick sync call is acceptable for config
+                 # A better approach might be an async call handled similarly to log/status refresh
                  name_result = self.git_handler.execute_command_sync(["git", "config", "--global", "user.name"])
                  email_result = self.git_handler.execute_command_sync(["git", "config", "--global", "user.email"])
                  current_name = name_result.stdout.strip() if name_result.returncode == 0 else ""
                  current_email = email_result.stdout.strip() if email_result.returncode == 0 else ""
                  dialog.set_data({"user.name": current_name, "user.email": current_email})
             except Exception as e:
-                 logging.warning(f"获取全局配置失败: {e}")
-                 # 对话框将以空字段打开
+                 logging.warning(f"Failed to fetch global config: {e}")
+                 # Dialog will open with empty fields
 
         if dialog.exec():
             config_data = dialog.get_data()
@@ -1464,9 +1464,9 @@ class MainWindow(QMainWindow):
             name_val = config_data.get("user.name");
             email_val = config_data.get("user.email")
 
-            # 仅当值与当前值不同或不为空时才添加配置命令
-            # 需要重新获取当前值或依赖对话框的初始值 (不太健壮)
-            # 让我们简化：如果对话框返回了值，则设置它 (允许清除配置)
+            # Only add config commands if the value has changed from the current or is not empty
+            # Need to re-fetch current values or rely on the dialog's initial values (less robust)
+            # Let's simplify: if the dialog returned a value, set it (allows clearing config)
             if name_val is not None: commands_to_run.append(f"git config --global user.name {shlex.quote(name_val.strip())}")
             if email_val is not None: commands_to_run.append(f"git config --global user.email {shlex.quote(email_val.strip())}")
 
@@ -1474,20 +1474,20 @@ class MainWindow(QMainWindow):
                  confirmation_msg = "将执行以下全局 Git 配置命令:\n\n" + "\n".join(commands_to_run) + "\n\n确定吗？"
                  reply = QMessageBox.question(self, "应用全局配置", confirmation_msg, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Yes)
                  if reply == QMessageBox.StandardButton.Yes:
-                     logging.info(f"正在执行全局配置命令: {commands_to_run}")
+                     logging.info(f"Executing global config commands: {commands_to_run}")
                      if self.git_handler:
-                         # 使用序列执行器执行
+                         # Use the sequential runner for execution
                          self._run_command_list_sequentially(commands_to_run, refresh_on_success=False)
                      else:
-                         logging.error("GitHandler 不可用，无法进行设置。")
+                         logging.error("GitHandler unavailable for settings.")
                          QMessageBox.critical(self, "错误", "无法执行配置命令。")
                  else:
                      QMessageBox.information(self, "操作取消", "未应用全局配置更改。")
             else:
-                 QMessageBox.information(self, "无更改", "未检测到有效的用户名或邮箱信息变更。") # 调整消息
+                 QMessageBox.information(self, "无更改", "未检测到有效的用户名或邮箱信息变更。") # Adjusted message
 
 
-    # --- 其他辅助方法 ---
+    # --- Other Helper Methods ---
     def _show_about_dialog(self):
         """显示关于对话框"""
         try: version = self.windowTitle().split('v')[-1].strip()
@@ -1501,23 +1501,23 @@ class MainWindow(QMainWindow):
         try:
             active_count = len(self.git_handler.active_operations) if hasattr(self.git_handler, 'active_operations') and self.git_handler.active_operations is not None else 0
             if active_count > 0:
-                 # 如果有待处理的操作，您可能希望在此提示用户
+                 # You might want to prompt the user here if there are pending operations
                  logging.warning(f"窗口关闭时仍有 {active_count} 个 Git 操作可能在后台运行。")
         except Exception as e: logging.exception("关闭窗口时检查 Git 操作出错。")
         logging.info("应用程序正在关闭。")
-        # 后台进程可能仍然会完成，但应用程序会关闭。
+        # The background process might still finish, but the app will close.
         event.accept()
 
-# 示例主执行块
+# Example main execution block
 if __name__ == '__main__':
-    # 根据需要设置日志级别，例如开发时设置为 DEBUG
+    # Set logging level based on need, e.g., DEBUG for development
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s')
     logging.info("应用程序启动...")
     app = QApplication(sys.argv)
 
-    # 为整个应用程序设置一致的字体 (可选)
-    # app.setFont(QFont("Segoe UI", 9)) # Windows 示例
-    # app.setFont(QFont("Sans Serif", 9)) # 通用字体示例
+    # Set a consistent font for the whole application (optional)
+    # app.setFont(QFont("Segoe UI", 9)) # Example for Windows
+    # app.setFont(QFont("Sans Serif", 9)) # Example generic font
 
     mainWin = MainWindow()
     mainWin.show()
