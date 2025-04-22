@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import logging
+from typing import Union # 导入 Union
 
 # 如果主应用程序未配置日志，则配置日志
 # logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -146,7 +147,8 @@ class DatabaseHandler:
             self._close_connection(conn)
         return success
 
-    def get_shortcut_by_key(self, shortcut_key: str) -> dict | None:
+    # 修改了这一行的类型提示
+    def get_shortcut_by_key(self, shortcut_key: str) -> Union[dict, None]:
         """根据快捷键字符串获取快捷键信息"""
         conn = self._get_connection()
         if not conn: return None

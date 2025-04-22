@@ -3,6 +3,7 @@ import os
 import sys
 import logging
 from PyQt6.QtCore import QObject, pyqtSignal, QThread, pyqtSlot
+from typing import Union # 导入 Union
 
 class GitWorker(QObject):
     finished = pyqtSignal(int, str, str)
@@ -105,7 +106,8 @@ class GitHandler(QObject):
             logging.error(f"设置路径失败 '{path}'")
             self._repo_path = path
 
-    def get_repo_path(self) -> str | None:
+    # 已在上次修改中处理
+    def get_repo_path(self) -> Union[str, None]:
         """获取当前的 Git 仓库路径。"""
         return self._repo_path
 
@@ -257,7 +259,8 @@ class GitHandler(QObject):
         """异步获取 Git 状态。"""
         self.execute_command_async(['git', 'status'], finished_slot, progress_slot)
 
-    def add_async(self, files: list[str] | str, finished_slot, progress_slot=None):
+    # 修改了这一行的类型提示
+    def add_async(self, files: Union[list[str], str], finished_slot, progress_slot=None):
         """异步执行 git add 命令。"""
         cmd = ['git', 'add']
         if isinstance(files, str):
@@ -357,6 +360,8 @@ class GitHandler(QObject):
             logging.warning("尝试暂存空列表。")
             finished_slot(0, "", "")
             return
+        # 注意: 这里的 list[str] 是 Python 3.9+ 的语法。如果你的 Python 版本非常老 (低于 3.9)，
+        # 你可能需要 from typing import List 并修改为 files: List[str]
         cmd = ['git', 'add', '--'] + files
         self.execute_command_async(cmd, finished_slot, progress_slot)
 
@@ -366,6 +371,7 @@ class GitHandler(QObject):
             logging.warning("尝试撤销暂存空列表。")
             finished_slot(0, "", "")
             return
+        # 同上，list[str] 是 Python 3.9+ 语法
         cmd = ['git', 'reset', 'HEAD', '--'] + files
         self.execute_command_async(cmd, finished_slot, progress_slot)
 
