@@ -1,3 +1,4 @@
+# ui/main_window.py
 import sys
 import os
 import logging
