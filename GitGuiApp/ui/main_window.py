@@ -148,7 +148,7 @@ class MainWindow(QMainWindow):
                  return
 
             display_cmd = ' '.join(shlex.quote(part) for part in command_parts)
-            self._append_output(f"\n$ {display_cmd}", QColor("blue"))
+            self._append_output(f"\n$ {display_cmd}", QColor("darkGray"))
             if self.status_bar: self.status_bar.showMessage(f"正在执行: {display_cmd[:50]}...", 0)
 
             @pyqtSlot(int, str, str)
