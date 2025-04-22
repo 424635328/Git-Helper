@@ -36,7 +36,7 @@ STATUS_COL_PATH = 1
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Git GUI v1.7")
+        self.setWindowTitle("Git GUI v1.10")
         self.setGeometry(100, 100, 1200, 900)
 
         self.db_handler = DatabaseHandler()
@@ -1506,8 +1506,12 @@ v1.4 - 增加 Pull/Push/Fetch 按钮
 v1.5 - 增加 Git 全局配置对话框
 v1.6 - 异步执行命令，优化UI响应
 v1.7 - 增加命令序列构建器和快捷键功能
+v1.8 - 增加提交详情显示和提交历史记录
+v1.9 - 增加远程仓库列表功能
+v1.10 - 增加全局配置保存和加载功能
 
 本项目是学习 Qt6 和 Git 命令交互的实践项目
+作者: GitHub @424635328
 """
         QMessageBox.about(self, "关于 简易 Git GUI", about_text)
 
