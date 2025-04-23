@@ -33,7 +33,7 @@ if __name__ == '__main__':
     except FileNotFoundError:
         logging.error(f"样式文件 {QSS_FILE} 未找到。")
         # 可以选择在这里显示一个错误消息给用户
-        # QMessageBox.critical(None, "样式错误", f"样式文件 {QSS_FILE} 未找到。")
+        QMessageBox.critical(None, "样式错误", f"样式文件 {QSS_FILE} 未找到。")
     except Exception as e:
         logging.warning(f"应用样式失败: {e}")
 
