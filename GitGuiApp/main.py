@@ -17,8 +17,7 @@ logging.basicConfig(
 )
 
 # 定义 QSS 文件的路径
-# 假设 cyberpunk.qss 和 main.py 在同一个目录下
-QSS_FILE = "cyberpunk.qss"
+QSS_FILE = "style.qss"
 
 if __name__ == '__main__':
     logging.info("应用程序启动...")
