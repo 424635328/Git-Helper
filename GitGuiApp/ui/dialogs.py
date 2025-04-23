@@ -1,5 +1,3 @@
-# ui/dialogs.py
-# -*- coding: utf-8 -*-
 import logging
 from PyQt6.QtWidgets import (
     QDialog, QLineEdit, QTextEdit, QFormLayout,

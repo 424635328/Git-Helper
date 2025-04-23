@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import sys
 import os
 import logging
@@ -11,13 +10,11 @@ from PyQt6.QtWidgets import (
     QStatusBar, QToolBar, QMenu, QTreeView, QTabWidget, QHeaderView, QTableWidget, QTableWidgetItem,
     QSpacerItem, QFrame, QStyle
 )
-from PyQt6.QtGui import (
-    QAction, QKeySequence, QColor, QTextCursor, QIcon, QFont, QStandardItemModel,
-    QDesktopServices, QTextCharFormat, QMovie
-)
-from PyQt6.QtCore import Qt, pyqtSlot, QSize, QTimer, QModelIndex, QUrl, QPoint, QItemSelection, QSettings
-from typing import Union, Optional
 
+
+from PyQt6.QtGui import QAction, QKeySequence, QColor, QTextCursor, QIcon, QFont, QStandardItemModel, QDesktopServices, QTextCharFormat
+from PyQt6.QtCore import Qt, pyqtSlot, QSize, QTimer, QModelIndex, QUrl, QPoint, QItemSelection
+from typing import Union, Optional
 try:
     from .dialogs import ShortcutDialog, SettingsDialog
 except ImportError:
@@ -35,28 +32,18 @@ LOG_COL_MESSAGE = 3
 STATUS_COL_STATUS = 0
 STATUS_COL_PATH = 1
 
-# Make sure this path is correct for your project
-LOADING_ANIMATION_PATH = os.path.join(os.path.dirname(__file__), "loading_spinner.gif") # Assuming gif is in the same dir as main_window.py
-SETTINGS_ORG_NAME = "MyGitApp"
-SETTINGS_APP_NAME = "GitHelperGUI"
-SETTINGS_LAST_REPO_KEY = "lastRepoPath"
-
-
 class MainWindow(QMainWindow):
-    """主应用窗口，集成了 Git GUI 功能"""
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Git GUI v1.17")
+        self.setWindowTitle("Git GUI v1.11")
         self.setGeometry(100, 100, 1200, 900)
 
         self.git_handler = GitHandler()
         self.db_handler = DatabaseHandler()
-        self.shortcut_manager = ShortcutManager(self, self.db_handler, self.git_handler)
+        self.shortcut_manager = ShortcutManager(self,self.db_handler, self.git_handler)
 
         self.current_command_sequence = []
         self._repo_dependent_widgets = []
-        self._is_busy = False
-        self._pending_refreshes = 0
 
         self.output_display: Optional[QTextEdit] = None
         self.command_input: Optional[QLineEdit] = None
@@ -72,47 +59,18 @@ class MainWindow(QMainWindow):
         self.main_tab_widget: Optional[QTabWidget] = None
         self._output_tab_index = -1
         self.commit_details_textedit: Optional[QTextEdit] = None
-        self.current_branch_name_display: Optional[str] = None
-        self.loading_label: Optional[QLabel] = None
-        self.loading_movie: Optional[QMovie] = None
 
-        self.stage_all_button: Optional[QPushButton] = None
-        self.unstage_all_button: Optional[QPushButton] = None
-        self.init_button: Optional[QPushButton] = None
-        self.select_repo_button: Optional[QPushButton] = None
+
+        self.current_branch_name_display: Optional[str] = None
+
 
         self._init_ui()
         self.shortcut_manager.load_and_register_shortcuts()
-        self._load_last_repo()
+        self._update_repo_status()
 
         logging.info("主窗口初始化完成。")
 
-    def _load_last_repo(self):
-        settings = QSettings(SETTINGS_ORG_NAME, SETTINGS_APP_NAME)
-        last_repo_path = settings.value(SETTINGS_LAST_REPO_KEY, None)
-        if last_repo_path and isinstance(last_repo_path, str) and os.path.isdir(last_repo_path):
-            logging.info(f"尝试加载上次使用的仓库: {last_repo_path}")
-            # Use QTimer.singleShot to delay setting the repo path
-            # This allows the UI to fully initialize before potentially triggering refreshes
-            QTimer.singleShot(100, lambda path=last_repo_path: self._set_repository_path(path))
-        else:
-            logging.info("没有找到上次使用的有效仓库路径。")
-            self._update_repo_status()
-
-    def _save_current_repo(self):
-        settings = QSettings(SETTINGS_ORG_NAME, SETTINGS_APP_NAME)
-        current_path = self.git_handler.get_repo_path()
-        if current_path and self.git_handler.is_valid_repo():
-            settings.setValue(SETTINGS_LAST_REPO_KEY, current_path)
-            logging.info(f"保存当前仓库路径: {current_path}")
-        else:
-             if settings.contains(SETTINGS_LAST_REPO_KEY):
-                  settings.remove(SETTINGS_LAST_REPO_KEY)
-                  logging.info("当前仓库无效，清除上次仓库路径记录。")
-
-
     def _check_repo_and_warn(self, message="请先选择一个有效的 Git 仓库。"):
-        """检查当前是否处于有效仓库，如果不是则显示警告并返回 False"""
         if not self.git_handler or not self.git_handler.is_valid_repo():
             self._show_warning("操作无效", message)
             return False
@@ -125,7 +83,6 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, title, message)
 
     def _append_output(self, text: str, color: QColor = None):
-        """向原始输出文本框追加内容"""
         if not self.output_display: return
         cursor = self.output_display.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.End)
@@ -144,19 +101,7 @@ class MainWindow(QMainWindow):
         self.output_display.ensureCursorVisible()
 
     def _run_command_list_sequentially(self, command_strings: list[str], refresh_on_success=True):
-        """按顺序异步执行一系列 Git 命令"""
-        command_strings = [cmd.strip() for cmd in command_strings if cmd.strip()] # Clean and remove empty
-        if not command_strings:
-             logging.debug("命令列表为空，无需执行。")
-             return
-
-        is_init_or_clone = command_strings and command_strings[0].lower().startswith(("git init", "git clone"))
-        if not is_init_or_clone and not self._check_repo_and_warn("仓库无效，无法执行命令序列。"):
-             return
-
-        if self._is_busy:
-             logging.warning("UI 正在忙碌，跳过新的命令序列请求。")
-             self._show_information("操作繁忙", "当前正在执行其他操作，请稍后再试。")
+        if not self._check_repo_and_warn("仓库无效，无法执行命令序列。"):
              return
 
         logging.debug(f"准备执行命令列表: {command_strings}, 成功后刷新: {refresh_on_success}")
@@ -172,30 +117,18 @@ class MainWindow(QMainWindow):
 
         def execute_next(index):
             if index >= len(command_strings):
-                logging.debug("命令序列执行完毕。")
                 self._append_output("\n✅ --- 所有命令执行完毕 ---", QColor("green"))
-                # Keep the sequence in the builder unless explicitly cleared
-                # self._clear_sequence()
-
-                was_init = command_strings and command_strings[0].lower() == "git init"
-                was_clone = command_strings and command_strings[0].lower().startswith("git clone")
-
-                if was_init or was_clone:
-                     logging.debug("Init/Clone 命令成功，更新仓库状态。")
-                     # Repository path should have been set by _set_repository_path or _handle_clone_finish
-                     # Wait for _update_repo_status to finish its refresh operations before releasing busy
-                     # _update_repo_status will eventually call _set_ui_busy(False) after refreshes
-                     self._update_repo_status()
-                elif refresh_on_success:
-                     logging.debug("命令序列成功，请求刷新。")
-                     self._refresh_all_views() # This will set busy state and release it when done
-                else:
-                    logging.debug("命令序列成功，无需刷新。")
-                    self._set_ui_busy(False) # Release busy state immediately
-
+                self._clear_sequence()
+                self._set_ui_busy(False)
+                if refresh_on_success:
+                     self._refresh_all_views()
                 return
 
             cmd_str = command_strings[index].strip()
+            if not cmd_str:
+                logging.debug(f"跳过空命令 #{index + 1}.");
+                QTimer.singleShot(10, lambda idx=index + 1: execute_next(idx));
+                return
 
             try:
                 command_parts = shlex.split(cmd_str)
@@ -219,7 +152,7 @@ class MainWindow(QMainWindow):
 
             @pyqtSlot(int, str, str)
             def on_command_finished(return_code, stdout, stderr):
-                QTimer.singleShot(0, lambda rc=return_code, so=stdout, se=stderr: process_finish(rc, so, se))
+                QTimer.singleShot(10, lambda rc=return_code, so=stdout, se=stderr: process_finish(rc, so, se))
 
             def process_finish(return_code, stdout, stderr):
                 if stdout: self._append_output(f"stdout:\n{stdout.strip()}")
@@ -237,18 +170,16 @@ class MainWindow(QMainWindow):
             @pyqtSlot(str)
             def on_progress(message):
                 if message and not (message.startswith("Receiving objects:") or message.startswith("Resolving deltas:") or message.startswith("remote:")):
-                     if self.status_bar and self._is_busy:
-                          self.status_bar.showMessage(f"进度: {message}", 0)
-
+                    if self.status_bar: self.status_bar.showMessage(message, 3000)
 
             self.git_handler.execute_command_async(command_parts, on_command_finished, on_progress)
 
         execute_next(0)
 
     def _add_repo_dependent_widget(self, widget):
-        """将需要在仓库无效时禁用的控件添加到列表"""
-        if widget:
+         if widget:
               self._repo_dependent_widgets.append(widget)
+              self._update_ui_enable_state(self.git_handler.is_valid_repo())
 
     def _init_ui(self):
         central_widget = QWidget()
@@ -268,9 +199,6 @@ class MainWindow(QMainWindow):
         self._create_status_bar()
         self._create_menu()
         self._create_toolbar()
-        # Initial state should be disabled until repo is set or init/clone allowed
-        self._update_ui_enable_state(False)
-
 
     def _create_repo_area(self, main_layout: QVBoxLayout):
         repo_layout = QHBoxLayout()
@@ -278,10 +206,10 @@ class MainWindow(QMainWindow):
         self.repo_label.setToolTip("当前操作的 Git 仓库路径")
         repo_layout.addWidget(self.repo_label, 1)
 
-        self.select_repo_button = QPushButton("选择仓库")
-        self.select_repo_button.setToolTip("选择或克隆仓库目录")
-        self.select_repo_button.clicked.connect(self._select_or_clone_repo_dialog)
-        repo_layout.addWidget(self.select_repo_button)
+        select_repo_button = QPushButton("选择仓库")
+        select_repo_button.setToolTip("选择仓库目录")
+        select_repo_button.clicked.connect(self._select_repository)
+        repo_layout.addWidget(select_repo_button)
 
         main_layout.addLayout(repo_layout)
 
@@ -313,7 +241,7 @@ class MainWindow(QMainWindow):
 
         left_layout.addWidget(QLabel("命令序列构建块:"))
         command_builder_layout_1 = QHBoxLayout()
-        self.init_button = self._add_command_button(command_builder_layout_1, "Init", "添加 'git init' 到序列 (用于初始化新仓库)", lambda: self._add_command_to_sequence("git init"), is_repo_dependent=False)
+        self._add_command_button(command_builder_layout_1, "Init", "添加 'git init' 到序列 (用于初始化新仓库)", lambda: self._add_command_to_sequence("git init"), is_repo_dependent=False)
         self._add_command_button(command_builder_layout_1, "Branch...", "添加 'git branch ' 到序列 (需要补充)", lambda: self._add_command_to_sequence("git branch "))
         self._add_command_button(command_builder_layout_1, "Merge...", "添加 'git merge <branch>' 到序列 (需要输入)", self._add_merge_to_sequence)
         self._add_command_button(command_builder_layout_1, "Checkout...", "添加 'git checkout <ref/path>' 到序列 (需要输入)", self._add_checkout_to_sequence)
@@ -331,43 +259,36 @@ class MainWindow(QMainWindow):
         self._add_command_button(command_builder_layout_3, "Tag...", "添加 'git tag <name>' 到序列 (需要输入)", self._add_tag_to_sequence)
         self._add_command_button(command_builder_layout_3, "Remote...", "添加 'git remote ' 到序列 (需要补充)", lambda: self._add_command_to_sequence("git remote "))
         self._add_command_button(command_builder_layout_3, "Restore...", "添加 'git restore ' 到序列 (需要输入)", self._add_restore_to_sequence)
+        self._add_command_button(command_builder_layout_3, "Main", "添加 'git checkout main' 到序列", lambda: self._add_command_to_sequence("git checkout main"))
+        self._add_command_button(command_builder_layout_3, "Master", "添加 'git checkout master' 到序列", lambda: self._add_command_to_sequence("git checkout master"))
         left_layout.addLayout(command_builder_layout_3)
 
-        left_layout.addWidget(QLabel("常用参数/选项 (追加到序列最后一行或新行):"))
-        parameter_buttons_layout_1 = QHBoxLayout()
-        self._add_command_button(parameter_buttons_layout_1, "-a", "添加 '-a' 参数到序列 (例如 commit -am)", lambda: self._add_parameter_to_sequence("-a"))
-        self._add_command_button(parameter_buttons_layout_1, "-v", "添加 '-v' 参数到序列 (详细输出)", lambda: self._add_parameter_to_sequence("-v"))
-        self._add_command_button(parameter_buttons_layout_1, "--hard", "添加 '--hard' 参数到序列 (危险! 通常用于 reset)", lambda: self._add_parameter_to_sequence("--hard"))
-        self._add_command_button(parameter_buttons_layout_1, "-f", "添加 '-f' 参数到序列 (强制, 危险!)", lambda: self._add_parameter_to_sequence("-f"))
-        left_layout.addLayout(parameter_buttons_layout_1)
 
-        parameter_buttons_layout_2 = QHBoxLayout()
-        self._add_command_button(parameter_buttons_layout_2, "-u", "添加 '-u' 参数到序列 (上游跟踪, 例如 push -u)", lambda: self._add_parameter_to_sequence("-u"))
-        self._add_command_button(parameter_buttons_layout_2, "-d", "添加 '-d' 参数到序列 (删除, 例如 branch -d)", lambda: self._add_parameter_to_sequence("-d"))
-        self._add_command_button(parameter_buttons_layout_2, "-p", "添加 '-p' 参数到序列 (补丁模式, 例如 add -p)", lambda: self._add_parameter_to_sequence("-p"))
-        self._add_command_button(parameter_buttons_layout_2, "--soft", "添加 '--soft' 参数到序列 (常用于 reset)", lambda: self._add_parameter_to_sequence("--soft"))
-        left_layout.addLayout(parameter_buttons_layout_2)
-
-        parameter_buttons_layout_3 = QHBoxLayout()
-        self._add_command_button(parameter_buttons_layout_3, "-s", "添加 '-s' 参数到序列 (例如 commit -s, Signed-off-by)", lambda: self._add_parameter_to_sequence("-s"))
-        self._add_command_button(parameter_buttons_layout_3, "-x", "添加 '-x' 参数到序列 (例如 clean -fdx, 危险!)", lambda: self._add_parameter_to_sequence("-x"))
-        self._add_command_button(parameter_buttons_layout_3, "--quiet", "添加 '--quiet' 或 '-q' 参数到序列 (静默模式)", lambda: self._add_parameter_to_sequence("--quiet"))
-        left_layout.addLayout(parameter_buttons_layout_3)
+        left_layout.addWidget(QLabel("常用参数/选项 (会添加新行到序列，请手动编辑或调整):"))
+        parameter_buttons_layout = QHBoxLayout()
+        self._add_command_button(parameter_buttons_layout, "-a", "添加 '-a' 参数到序列 (请手动添加到对应命令后)", lambda: self._add_parameter_to_sequence("-a"))
+        self._add_command_button(parameter_buttons_layout, "-v", "添加 '-v' 参数到序列 (请手动添加到对应命令后)", lambda: self._add_parameter_to_sequence("-v"))
+        self._add_command_button(parameter_buttons_layout, "--hard", "添加 '--hard' 参数到序列 (危险! 通常用于 reset, 请手动添加到对应命令后)", lambda: self._add_parameter_to_sequence("--hard"))
+        self._add_command_button(parameter_buttons_layout, "-f", "添加 '-f' 参数到序列 (强制, 请手动添加到对应命令后)", lambda: self._add_parameter_to_sequence("-f"))
+        self._add_command_button(parameter_buttons_layout, "-u", "添加 '-u' 参数到序列 (上游跟踪, 请手动添加到对应命令后)", lambda: self._add_parameter_to_sequence("-u"))
+        self._add_command_button(parameter_buttons_layout, "-d", "添加 '-d' 参数到序列 (删除, 常用于 branch, 请手动添加到对应命令后)", lambda: self._add_parameter_to_sequence("-d"))
+        self._add_command_button(parameter_buttons_layout, "-p", "添加 '-p' 参数到序列 (补丁模式, 请手动添加到对应命令后)", lambda: self._add_parameter_to_sequence("-p"))
+        self._add_command_button(parameter_buttons_layout, "--soft", "添加 '--soft' 参数到序列 (常用于 reset, 请手动添加到对应命令后)", lambda: self._add_parameter_to_sequence("--soft"))
+        left_layout.addLayout(parameter_buttons_layout)
 
 
         left_layout.addWidget(QLabel("命令序列构建器:"))
         self.sequence_display = QTextEdit()
-        self.sequence_display.setReadOnly(False)
-        self.sequence_display.setPlaceholderText("点击上方按钮构建命令序列，或从快捷键加载，可直接编辑...")
+        self.sequence_display.setReadOnly(True)
+        self.sequence_display.setPlaceholderText("点击上方按钮构建命令序列，或从快捷键加载...")
         self.sequence_display.setFixedHeight(80)
-        self.sequence_display.textChanged.connect(self._sequence_text_changed)
         left_layout.addWidget(self.sequence_display)
         self._add_repo_dependent_widget(self.sequence_display)
 
         sequence_actions_layout = QHBoxLayout()
         execute_button = QPushButton("执行序列")
         execute_button.setToolTip("执行上方构建的命令序列")
-        execute_button.setStyleSheet("background-color: darkgreen; color: white;")
+        execute_button.setStyleSheet("background-color: darkred; color: black;")
         execute_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         execute_button.clicked.connect(self._execute_sequence)
         self._add_repo_dependent_widget(execute_button)
@@ -407,7 +328,7 @@ class MainWindow(QMainWindow):
 
         left_layout.addWidget(QLabel("快捷键组合:"))
         self.shortcut_list_widget = QListWidget()
-        self.shortcut_list_widget.setToolTip("双击加载到构建器，右键删除") # Updated tooltip
+        self.shortcut_list_widget.setToolTip("双击执行，右键删除")
         self.shortcut_list_widget.itemDoubleClicked.connect(self._load_shortcut_into_builder)
         self.shortcut_list_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.shortcut_list_widget.customContextMenuRequested.connect(self.shortcut_manager.show_shortcut_context_menu)
@@ -442,23 +363,23 @@ class MainWindow(QMainWindow):
         self.main_tab_widget.addTab(status_tab_layout.parentWidget(), "状态 / 文件")
 
         status_action_layout = QHBoxLayout()
-        self.stage_all_button = QPushButton("全部暂存 (+)")
-        self.stage_all_button.setToolTip("暂存所有未暂存和未跟踪的文件 (git add .)")
-        self.stage_all_button.clicked.connect(self._stage_all)
-        self._add_repo_dependent_widget(self.stage_all_button)
+        stage_all_button = QPushButton("全部暂存 (+)")
+        stage_all_button.setToolTip("暂存所有未暂存和未跟踪的文件 (git add .)")
+        stage_all_button.clicked.connect(self._stage_all)
+        self._add_repo_dependent_widget(stage_all_button)
 
-        self.unstage_all_button = QPushButton("全部撤销暂存 (-)")
-        self.unstage_all_button.setToolTip("撤销所有已暂存文件的暂存状态 (git reset HEAD --)")
-        self.unstage_all_button.clicked.connect(self._unstage_all)
-        self._add_repo_dependent_widget(self.unstage_all_button)
+        unstage_all_button = QPushButton("全部撤销暂存 (-)")
+        unstage_all_button.setToolTip("撤销所有已暂存文件的暂存状态 (git reset HEAD --)")
+        unstage_all_button.clicked.connect(self._unstage_all)
+        self._add_repo_dependent_widget(unstage_all_button)
 
         refresh_status_button = QPushButton("刷新状态")
         refresh_status_button.setToolTip("重新加载当前文件状态")
         refresh_status_button.clicked.connect(self._refresh_status_view)
         self._add_repo_dependent_widget(refresh_status_button)
 
-        status_action_layout.addWidget(self.stage_all_button)
-        status_action_layout.addWidget(self.unstage_all_button)
+        status_action_layout.addWidget(stage_all_button)
+        status_action_layout.addWidget(unstage_all_button)
         status_action_layout.addStretch()
         status_action_layout.addWidget(refresh_status_button)
         status_tab_layout.addLayout(status_action_layout)
@@ -470,8 +391,8 @@ class MainWindow(QMainWindow):
         self.status_tree_view.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.status_tree_view.header().setSectionResizeMode(STATUS_COL_PATH, QHeaderView.ResizeMode.Stretch)
         self.status_tree_view.header().setStretchLastSection(False)
+        self.status_tree_view.setColumnWidth(STATUS_COL_STATUS, 100)
         self.status_tree_view.setAlternatingRowColors(True)
-        # Connect selection changed to trigger diff update
         self.status_tree_view.selectionModel().selectionChanged.connect(self._status_selection_changed)
         self.status_tree_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.status_tree_view.customContextMenuRequested.connect(self._show_status_context_menu)
@@ -492,14 +413,11 @@ class MainWindow(QMainWindow):
         self.log_table_widget.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.log_table_widget.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.log_table_widget.verticalHeader().setVisible(False)
+        self.log_table_widget.setColumnWidth(LOG_COL_COMMIT, 80)
+        self.log_table_widget.setColumnWidth(LOG_COL_AUTHOR, 140)
+        self.log_table_widget.setColumnWidth(LOG_COL_DATE, 100)
         self.log_table_widget.horizontalHeader().setSectionResizeMode(LOG_COL_MESSAGE, QHeaderView.ResizeMode.Stretch)
-        self.log_table_widget.horizontalHeader().setSectionResizeMode(LOG_COL_COMMIT, QHeaderView.ResizeMode.ResizeToContents)
-        self.log_table_widget.horizontalHeader().setSectionResizeMode(LOG_COL_AUTHOR, QHeaderView.ResizeMode.ResizeToContents)
-        self.log_table_widget.horizontalHeader().setSectionResizeMode(LOG_COL_DATE, QHeaderView.ResizeMode.ResizeToContents)
         self.log_table_widget.itemSelectionChanged.connect(self._log_selection_changed)
-        self.log_table_widget.setWordWrap(False)
-        self.log_table_widget.setTextElideMode(Qt.TextElideMode.ElideRight)
-
         log_tab_layout.addWidget(self.log_table_widget, 2)
         self._add_repo_dependent_widget(self.log_table_widget)
 
@@ -524,6 +442,7 @@ class MainWindow(QMainWindow):
 
         self.diff_text_edit = QTextEdit()
         self.diff_text_edit.setReadOnly(True)
+        self.diff_text_edit.setFontFamily("Courier New")
         self.diff_text_edit.setPlaceholderText("选中已更改的文件以查看差异...")
         diff_tab_layout.addWidget(self.diff_text_edit, 1)
         self._add_repo_dependent_widget(self.diff_text_edit)
@@ -562,24 +481,6 @@ class MainWindow(QMainWindow):
     def _create_status_bar(self):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
-
-        self.loading_label = QLabel(self)
-        self.loading_label.setFixedSize(24, 24)
-        self.loading_movie = QMovie(LOADING_ANIMATION_PATH)
-        self.loading_movie.setScaledSize(QSize(24, 24))
-
-        if not os.path.exists(LOADING_ANIMATION_PATH) or not self.loading_movie.isValid():
-             logging.warning(f"动画文件未找到或无效: {LOADING_ANIMATION_PATH}. 将显示文本指示器。")
-             # Fallback to text indicator if movie is invalid or not found
-             self.loading_movie = None # Ensure movie is None if invalid
-             self.loading_label.setText("⏳")
-             self.loading_label.setStyleSheet("QLabel { padding-left: 5px; padding-right: 5px; }")
-        else:
-            self.loading_label.setMovie(self.loading_movie)
-
-        self.status_bar.addPermanentWidget(self.loading_label)
-        self.loading_label.hide()
-
         self.status_bar.showMessage("就绪")
 
 
@@ -587,19 +488,9 @@ class MainWindow(QMainWindow):
         menu_bar = self.menuBar()
 
         file_menu = menu_bar.addMenu("文件(&F)")
-        select_repo_action = QAction("选择或克隆仓库(&O)...", self)
-        select_repo_action.triggered.connect(self._select_or_clone_repo_dialog)
+        select_repo_action = QAction("选择仓库(&O)...", self)
+        select_repo_action.triggered.connect(self._select_repository)
         file_menu.addAction(select_repo_action)
-
-        init_repo_action = QAction("在此初始化新仓库(&I)...", self)
-        init_repo_action.triggered.connect(self._init_repository_here_dialog)
-        file_menu.addAction(init_repo_action)
-
-        clone_repo_action = QAction("克隆远程仓库(&C)...", self)
-        clone_repo_action.triggered.connect(self._clone_repository_dialog)
-        file_menu.addAction(clone_repo_action)
-
-        file_menu.addSeparator()
 
         git_config_action = QAction("Git 全局配置(&G)...", self)
         git_config_action.triggered.connect(self._open_settings_dialog)
@@ -608,7 +499,6 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
 
         exit_action = QAction("退出(&X)", self)
-        exit_action.setShortcut(QKeySequence.StandardKey.Quit)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
@@ -618,19 +508,6 @@ class MainWindow(QMainWindow):
         refresh_action.triggered.connect(self._refresh_all_views)
         repo_menu.addAction(refresh_action)
         self._add_repo_dependent_widget(refresh_action)
-
-        repo_menu.addSeparator()
-
-        fetch_all_action = QAction("抓取所有远程(&A)", self)
-        fetch_all_action.triggered.connect(self._fetch_all)
-        repo_menu.addAction(fetch_all_action)
-        self._add_repo_dependent_widget(fetch_all_action)
-
-        fetch_prune_action = QAction("抓取并修剪远程(&P)", self)
-        fetch_prune_action.setToolTip("执行 git fetch --prune")
-        fetch_prune_action.triggered.connect(self._fetch_prune)
-        repo_menu.addAction(fetch_prune_action)
-        self._add_repo_dependent_widget(fetch_prune_action)
 
         repo_menu.addSeparator()
 
@@ -651,39 +528,7 @@ class MainWindow(QMainWindow):
         repo_menu.addAction(list_remotes_action)
         self._add_repo_dependent_widget(list_remotes_action)
 
-        repo_menu.addSeparator()
-
-        stash_pop_action = QAction("应用最近 Stash (Pop)(&T)", self)
-        stash_pop_action.triggered.connect(self._stash_pop)
-        repo_menu.addAction(stash_pop_action)
-        self._add_repo_dependent_widget(stash_pop_action)
-
-        stash_list_action = QAction("查看 Stash 列表(&L)", self)
-        stash_list_action.triggered.connect(self._stash_list)
-        repo_menu.addAction(stash_list_action)
-        self._add_repo_dependent_widget(stash_list_action)
-
-        repo_menu.addSeparator()
-
-        clean_action = QAction("清理工作区(&W)...", self)
-        clean_action.setToolTip("执行 git clean -fd (危险!)")
-        clean_action.triggered.connect(self._clean_working_directory_dialog)
-        repo_menu.addAction(clean_action)
-        self._add_repo_dependent_widget(clean_action)
-
-
         help_menu = menu_bar.addMenu("帮助(&H)")
-
-        doc_action = QAction("查看 Git 文档(&D)", self)
-        doc_action.triggered.connect(self._open_git_documentation)
-        help_menu.addAction(doc_action)
-
-        issue_action = QAction("报告问题(&I)...", self)
-        issue_action.triggered.connect(self._open_issue_tracker)
-        help_menu.addAction(issue_action)
-
-        help_menu.addSeparator()
-
         about_action = QAction("关于(&A)", self)
         about_action.triggered.connect(self._show_about_dialog)
         help_menu.addAction(about_action)
@@ -698,12 +543,10 @@ class MainWindow(QMainWindow):
         refresh_icon = style.standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
         pull_icon = style.standardIcon(QStyle.StandardPixmap.SP_ArrowDown)
         push_icon = style.standardIcon(QStyle.StandardPixmap.SP_ArrowUp)
-        fetch_icon = style.standardIcon(QStyle.StandardPixmap.SP_ArrowForward) # Use Forward for Fetch
         new_branch_icon = style.standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder)
         switch_branch_icon = style.standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView)
+        remotes_icon = style.standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
         clear_icon = style.standardIcon(QStyle.StandardPixmap.SP_DialogResetButton)
-        stash_icon = style.standardIcon(QStyle.StandardPixmap.SP_DriveHDIcon)
-
 
         refresh_tb_action = QAction(refresh_icon, "刷新", self)
         refresh_tb_action.setToolTip("刷新状态、分支和日志视图 (F5)")
@@ -723,13 +566,6 @@ class MainWindow(QMainWindow):
         push_action.triggered.connect(lambda: self._add_command_to_sequence("git push"))
         toolbar.addAction(push_action)
         self._add_repo_dependent_widget(push_action)
-
-        fetch_action = QAction(fetch_icon, "Fetch", self)
-        fetch_action.setToolTip("添加 'git fetch' 到序列")
-        fetch_action.triggered.connect(lambda: self._add_command_to_sequence("git fetch"))
-        toolbar.addAction(fetch_action)
-        self._add_repo_dependent_widget(fetch_action)
-
         toolbar.addSeparator()
 
         create_branch_tb_action = QAction(new_branch_icon, "新分支", self)
@@ -744,12 +580,11 @@ class MainWindow(QMainWindow):
         toolbar.addAction(switch_branch_action_tb)
         self._add_repo_dependent_widget(switch_branch_action_tb)
 
-        stash_pop_tb_action = QAction(stash_icon, "Stash Pop", self)
-        stash_pop_tb_action.setToolTip("应用最近的 Stash (git stash pop)")
-        stash_pop_tb_action.triggered.connect(self._stash_pop)
-        toolbar.addAction(stash_pop_tb_action)
-        self._add_repo_dependent_widget(stash_pop_tb_action)
-
+        list_remotes_action_tb = QAction(remotes_icon, "远程列表", self)
+        list_remotes_action_tb.setToolTip("列出远程仓库 (直接执行)")
+        list_remotes_action_tb.triggered.connect(self._run_list_remotes)
+        toolbar.addAction(list_remotes_action_tb)
+        self._add_repo_dependent_widget(list_remotes_action_tb)
         toolbar.addSeparator()
 
         clear_output_action = QAction(clear_icon, "清空原始输出", self)
@@ -766,12 +601,13 @@ class MainWindow(QMainWindow):
         layout.addWidget(button)
         if is_repo_dependent:
             self._add_repo_dependent_widget(button)
+        else:
+             button.setEnabled(True)
         return button
 
     def _update_repo_status(self):
-        """更新仓库状态显示和UI启用状态"""
-        repo_path = self.git_handler.get_repo_path()
-        is_valid = self.git_handler.is_valid_repo()
+        repo_path = self.git_handler.get_repo_path() if self.git_handler else None
+        is_valid = self.git_handler.is_valid_repo() if self.git_handler else False
 
         display_path = repo_path if repo_path and len(repo_path) < 60 else (f"...{repo_path[-57:]}" if repo_path else "(未选择)")
         if self.repo_label:
@@ -781,173 +617,145 @@ class MainWindow(QMainWindow):
         self._update_ui_enable_state(is_valid)
 
         if is_valid:
-            # If UI is not busy from previous command, indicate loading refresh views
-            if not self._is_busy:
-                if self.status_bar: self.status_bar.showMessage(f"正在加载仓库: {repo_path}", 0)
-                QApplication.processEvents()
-                # _refresh_all_views will set busy state and manage its release
-                self._refresh_all_views()
-            else:
-                 # If already busy (e.g., from clone finishing), just update info and let current busy finish
-                 self._update_status_bar_info()
-                 logging.info(f"仓库已设置为 {repo_path}，但UI正忙，将在完成后刷新视图。")
+            if self.status_bar: self.status_bar.showMessage(f"正在加载仓库: {repo_path}", 0)
+            QApplication.processEvents()
+            self._refresh_all_views()
         else:
-            if self.status_bar and not self._is_busy: self.status_bar.showMessage("请选择或克隆一个有效的 Git 仓库目录", 0)
+            if self.status_bar: self.status_bar.showMessage("请选择一个有效的 Git 仓库目录", 0)
             if self.status_tree_model: self.status_tree_model.clear_status()
             if self.branch_list_widget: self.branch_list_widget.clear()
             if self.log_table_widget: self.log_table_widget.setRowCount(0)
-            if self.diff_text_edit: self.diff_text_edit.clear(); self.diff_text_edit.setPlaceholderText("请选择有效仓库")
-            if self.commit_details_textedit: self.commit_details_textedit.clear(); self.commit_details_textedit.setPlaceholderText("请选择有效仓库")
+            if self.diff_text_edit: self.diff_text_edit.clear()
+            if self.commit_details_textedit: self.commit_details_textedit.clear()
             self._clear_sequence()
             self.current_branch_name_display = "(无效仓库)"
             self._update_status_bar_info()
-            self._set_ui_busy(False) # Ensure busy state is off if setting repo to invalid
-            logging.info("Git 仓库无效，相关 UI 已禁用。")
+            logging.info("Git 仓库无效，UI 已禁用。")
 
 
     def _update_ui_enable_state(self, enabled: bool):
-        """根据仓库有效性和繁忙状态启用/禁用 UI 元素"""
-        # The actual enabled state also depends on _is_busy, managed by _set_ui_busy
-        # This function primarily updates the state based on repo validity.
-        # _set_ui_busy will combine repo validity and busy state.
-        pass # This function is now handled by _set_ui_busy
+        for widget in self._repo_dependent_widgets:
+            if widget:
+                 widget.setEnabled(enabled)
 
+        if self._repo_dependent_widgets and len(self._repo_dependent_widgets) > 0:
+            init_button = None
+            for w in self._repo_dependent_widgets:
+                 if isinstance(w, QPushButton) and w.text() == "Init" and not w.isEnabled(): 
+                      init_button = w
+                      break
+            init_button = next((item.widget() for l in [
+                self.findChildren(QHBoxLayout, name='command_builder_layout_1'),
+                self.findChildren(QHBoxLayout, name='command_builder_layout_2'),
+                self.findChildren(QHBoxLayout, name='command_builder_layout_3')] 
+                for layout in l for item_index in range(layout.count()) for item in [layout.itemAt(item_index)] if item.widget() and isinstance(item.widget(), QPushButton) and item.widget().text() == "Init"), None)
+
+
+            if init_button:
+                 init_button.setEnabled(True) 
+
+
+        for action in self.findChildren(QAction):
+            action_text = action.text()
+            if action_text in ["选择仓库(&O)...", "Git 全局配置(&G)...", "退出(&X)", "关于(&A)", "清空原始输出"]:
+                action.setEnabled(True)
 
     def _update_status_bar_info(self):
-        """更新状态栏显示的仓库和分支信息"""
-        if not self.status_bar or self._is_busy: return
+        if not self.status_bar: return
 
-        is_valid = self.git_handler.is_valid_repo()
-        repo_path = self.git_handler.get_repo_path()
+        is_valid = self.git_handler.is_valid_repo() if self.git_handler else False
+        repo_path = self.git_handler.get_repo_path() if self.git_handler else None
 
-        repo_path_short = repo_path if repo_path else "(未选择)"
-        if repo_path and len(repo_path_short) > 40:
+        repo_path_short = repo_path or "(未选择)"
+        if len(repo_path_short) > 40:
             repo_path_short = f"...{repo_path_short[-37:]}"
 
-        branch_display = self.current_branch_name_display if self.current_branch_name_display else ("(未知)" if is_valid else "(无效仓库)")
+        branch_display = self.current_branch_name_display if self.current_branch_name_display else ("(未知分支)" if is_valid else "(无效仓库)")
 
         status_message = f"分支: {branch_display} | 仓库: {repo_path_short}"
 
-        self.status_bar.showMessage(status_message, 0)
-        logging.debug(f"状态栏更新: {status_message}")
+        if self.status_bar.currentMessage().startswith("⏳ "):
+             logging.debug("状态栏正在显示繁忙消息，跳过更新。")
+        else:
+            self.status_bar.showMessage(status_message, 0)
+            logging.debug(f"状态栏更新: {status_message}")
 
 
     @pyqtSlot()
     def _refresh_all_views(self):
-        """刷新状态、分支和日志视图"""
-        if self._is_busy:
-             logging.debug("UI 正忙，忽略刷新全部视图请求。")
-             return # Ignore refresh if busy with command or another refresh
-
-        if not self._check_repo_and_warn("无法刷新视图，仓库无效。"):
-            return # Repo check will show warning
+        if not self._check_repo_and_warn("无法刷新视图，仓库无效。"): return
 
         logging.info("正在刷新状态、分支和日志视图...")
-        self._set_ui_busy(True) # Set busy state for the duration of refreshes
+        if self.status_bar: self.status_bar.showMessage("⏳ 正在刷新...", 0)
         QApplication.processEvents()
 
-        # Reset pending refreshes count
-        self._pending_refreshes = 3
         self._refresh_status_view()
         self._refresh_branch_list()
         self._refresh_log_view()
 
-    def _refresh_operation_finished(self):
-        """单个刷新操作完成时调用，检查是否所有刷新都已完成并解除繁忙状态"""
-        if self._is_busy:
-            self._pending_refreshes -= 1
-            logging.debug(f"Refresh operation finished. Pending: {self._pending_refreshes}")
-            if self._pending_refreshes <= 0:
-                logging.debug("所有刷新操作完成，释放繁忙状态。")
-                self._set_ui_busy(False)
-                self._pending_refreshes = 0
-
 
     @pyqtSlot()
     def _refresh_status_view(self):
-        """刷新文件状态视图"""
         if not self.git_handler or not self.git_handler.is_valid_repo():
              logging.warning("试图刷新状态，但 GitHandler 不可用或仓库无效。")
-             if self.status_tree_model: self.status_tree_model.clear_status()
-             if self.stage_all_button: self.stage_all_button.setEnabled(False)
-             if self.unstage_all_button: self.unstage_all_button.setEnabled(False)
-             if self.diff_text_edit: self.diff_text_edit.clear(); self.diff_text_edit.setPlaceholderText("仓库无效")
-             self._refresh_operation_finished()
              return
 
         logging.debug("正在请求 status porcelain...")
+        stage_all_btn = next((w for w in self._repo_dependent_widgets if isinstance(w, QPushButton) and w.text() == "全部暂存 (+)"), None)
+        unstage_all_btn = next((w for w in self._repo_dependent_widgets if isinstance(w, QPushButton) and w.text() == "全部撤销暂存 (-)"), None)
+        if stage_all_btn: stage_all_btn.setEnabled(False)
+        if unstage_all_btn: unstage_all_btn.setEnabled(False)
 
-        # Disable stage/unstage buttons while refreshing
-        if self.stage_all_button: self.stage_all_button.setEnabled(False)
-        if self.unstage_all_button: self.unstage_all_button.setEnabled(False)
-        if self.diff_text_edit: self.diff_text_edit.clear(); self.diff_text_edit.setPlaceholderText("正在刷新状态...")
+        if self.diff_text_edit: self.diff_text_edit.clear(); self.diff_text_edit.setPlaceholderText("选中已更改的文件以查看差异...")
+        if self.commit_details_textedit: self.commit_details_textedit.clear(); self.commit_details_textedit.setPlaceholderText("选中上方提交记录以查看详情...")
+
 
         self.git_handler.get_status_porcelain_async(self._on_status_refreshed)
 
 
     @pyqtSlot(int, str, str)
     def _on_status_refreshed(self, return_code: int, stdout: str, stderr: str):
-        """处理 Git 状态刷新的回调"""
+        if not self.status_tree_model or not self.status_tree_view:
+             logging.error("状态树模型或视图在状态刷新回调时未初始化。")
+             self._update_status_bar_info()
+             return
+
+        stage_all_btn = next((w for w in self._repo_dependent_widgets if isinstance(w, QPushButton) and w.text() == "全部暂存 (+)"), None)
+        unstage_all_btn = next((w for w in self._repo_dependent_widgets if isinstance(w, QPushButton) and w.text() == "全部撤销暂存 (-)"), None)
+
+        if self.status_tree_view:
+             self.status_tree_view.setUpdatesEnabled(False)
+
         try:
-            if not self.status_tree_model or not self.status_tree_view:
-                 logging.error("状态树模型或视图在状态刷新回调时未初始化。")
-                 return
+            if return_code == 0:
+                logging.debug("接收到 status porcelain，正在填充模型...")
+                self.status_tree_model.parse_and_populate(stdout)
+                self.status_tree_view.expandAll()
+                self.status_tree_view.resizeColumnToContents(STATUS_COL_STATUS)
+                self.status_tree_view.setColumnWidth(STATUS_COL_STATUS, max(100, self.status_tree_view.columnWidth(STATUS_COL_STATUS)))
 
-            is_valid = self.git_handler.is_valid_repo()
+                has_unstaged_or_untracked = self.status_tree_model.unstage_root.rowCount() > 0 or self.status_tree_model.untracked_root.rowCount() > 0 or (hasattr(self.status_tree_model, 'unmerged_root') and self.status_tree_model.unmerged_root.rowCount() > 0)
+                if stage_all_btn: stage_all_btn.setEnabled(has_unstaged_or_untracked)
+                if unstage_all_btn: unstage_all_btn.setEnabled(self.status_tree_model.staged_root.rowCount() > 0)
 
-            if self.status_tree_view:
-                 self.status_tree_view.setUpdatesEnabled(False)
-
-            enable_stage_all = False
-            enable_unstage_all = False
-
-            try:
-                if return_code == 0 and is_valid:
-                    self.status_tree_model.parse_and_populate(stdout)
-                    self.status_tree_view.expandAll()
-                    self.status_tree_view.resizeColumnToContents(STATUS_COL_STATUS)
-                    min_status_width = self.status_tree_view.fontMetrics().horizontalAdvance("Unmerged ") + 20
-                    self.status_tree_view.setColumnWidth(STATUS_COL_STATUS, max(min_status_width, self.status_tree_view.columnWidth(STATUS_COL_STATUS)))
-
-                    has_changes_to_stage = (
-                        self.status_tree_model.unstage_root.rowCount() > 0 or
-                        self.status_tree_model.untracked_root.rowCount() > 0 or
-                        (hasattr(self.status_tree_model, 'unmerged_root') and self.status_tree_model.unmerged_root.rowCount() > 0)
-                    )
-                    has_staged_changes = self.status_tree_model.staged_root.rowCount() > 0
-
-                    enable_stage_all = has_changes_to_stage
-                    enable_unstage_all = has_staged_changes
-
-                elif is_valid:
-                    logging.error(f"获取状态失败: RC={return_code}, 错误: {stderr.strip()}")
-                    self._append_output(f"❌ 获取 Git 状态失败:\n{stderr.strip()}", QColor("red"))
-                    self.status_tree_model.clear_status()
-                else:
-                     logging.warning("仓库在状态刷新期间变得无效，清空状态视图。")
-                     self.status_tree_model.clear_status()
-
-            finally:
-                # Update button enabled state based on new status and overall busy state
-                current_enabled_state = is_valid and not self._is_busy # Check busy state here
-                if self.stage_all_button: self.stage_all_button.setEnabled(enable_stage_all and current_enabled_state)
-                if self.unstage_all_button: self.unstage_all_button.setEnabled(enable_unstage_all and current_enabled_state)
-
-                if self.status_tree_view:
-                     self.status_tree_view.setUpdatesEnabled(True)
+            else:
+                logging.error(f"获取状态失败: RC={return_code}, 错误: {stderr}")
+                self._append_output(f"❌ 获取 Git 状态失败:\n{stderr}", QColor("red"))
+                self.status_tree_model.clear_status()
+                if stage_all_btn: stage_all_btn.setEnabled(False)
+                if unstage_all_btn: unstage_all_btn.setEnabled(False)
 
         finally:
-             self._refresh_operation_finished()
+            if self.status_tree_view:
+                 self.status_tree_view.setUpdatesEnabled(True)
+
+        self._update_status_bar_info()
 
 
     @pyqtSlot()
     def _refresh_branch_list(self):
-        """刷新分支列表"""
         if not self.git_handler or not self.git_handler.is_valid_repo():
              logging.warning("试图刷新分支列表，但 GitHandler 不可用或仓库无效。")
-             if self.branch_list_widget: self.branch_list_widget.clear()
-             self.current_branch_name_display = "(无效仓库)" if not self.git_handler.is_valid_repo() else "(错误)"
-             self._refresh_operation_finished()
              return
         logging.debug("正在请求格式化分支列表...")
         if self.branch_list_widget: self.branch_list_widget.clear()
@@ -956,403 +764,176 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(int, str, str)
     def _on_branches_refreshed(self, return_code: int, stdout: str, stderr: str):
-        """处理 Git 分支列表刷新的回调"""
-        try:
-            if not self.branch_list_widget or not self.git_handler:
-                 logging.warning("分支列表组件或 GitHandler 在分支刷新回调时无效 (可能在关闭窗口?)。")
-                 return
+        if not self.branch_list_widget or not self.git_handler:
+             logging.error("分支列表组件或 GitHandler 在分支刷新回调时未初始化。")
+             self.current_branch_name_display = "(内部错误)"
+             self._update_status_bar_info()
+             return
 
-            self.branch_list_widget.clear()
-            current_branch_name = None
-            is_valid = self.git_handler.is_valid_repo()
+        self.branch_list_widget.clear()
+        current_branch_name = None
+        is_valid = self.git_handler.is_valid_repo()
 
-            if return_code == 0 and is_valid:
-                lines = stdout.strip().splitlines()
-                bold_font = QFont(); bold_font.setBold(True)
-                remote_color = QColor("gray")
-                current_color = QColor("blue")
-
-                for line in lines:
-                    if not line: continue
+        if return_code == 0 and is_valid:
+            lines = stdout.strip().splitlines()
+            logging.debug(f"接收到分支: {len(lines)} 行")
+            for line in lines:
+                if not line: continue
+                match = re.match(r'^\*\s+(.+)$', line)
+                if match:
+                    is_current = True
+                    branch_name = match.group(1).strip()
+                else:
                     is_current = False
                     branch_name = line.strip()
 
-                    if branch_name.startswith('* '):
-                        is_current = True
-                        branch_name = branch_name[2:].strip()
-                        # Handle detached HEAD state like *(HEAD detached from origin/main)
-                        match_detached = re.match(r'\(HEAD detached(?: at)? from (.*?)\)', branch_name)
-                        if match_detached:
-                             current_branch_name = f"(Detached HEAD at {match_detached.group(1)})"
-                        else:
-                            current_branch_name = branch_name
+                if not branch_name: continue
 
-                    if not branch_name: continue
+                item = QListWidgetItem(branch_name)
+                if is_current:
+                    current_branch_name = branch_name
+                    font = item.font(); font.setBold(True); item.setFont(font)
+                    item.setForeground(QColor("blue"))
+                elif branch_name.startswith("remotes/"):
+                    item.setForeground(QColor("gray"))
 
-                    item = QListWidgetItem(branch_name)
-                    if is_current:
-                        item.setFont(bold_font)
-                        item.setForeground(current_color)
-                    elif branch_name.startswith("remotes/"):
-                        item.setForeground(remote_color)
+                self.branch_list_widget.addItem(item)
 
-                    self.branch_list_widget.addItem(item)
+            if current_branch_name:
+                 self.current_branch_name_display = current_branch_name
+                 items = self.branch_list_widget.findItems(current_branch_name, Qt.MatchFlag.MatchExactly)
+                 if items: self.branch_list_widget.setCurrentItem(items[0])
+            else:
+                 self.current_branch_name_display = "(未知分支)"
 
-                # Find and select the current branch item
-                if current_branch_name and not current_branch_name.startswith("(Detached HEAD"): # Don't try to select detached head "branch"
-                     items = self.branch_list_widget.findItems(current_branch_name, Qt.MatchFlag.MatchExactly)
-                     if items:
-                          self.branch_list_widget.setCurrentItem(items[0])
-                          self.branch_list_widget.scrollToItem(items[0], QAbstractItemView.ScrollHint.PositionAtCenter)
+        elif is_valid:
+            logging.error(f"获取分支失败: RC={return_code}, 错误: {stderr}")
+            self._append_output(f"❌ 获取分支列表失败:\n{stderr}", QColor("red"))
+            self.current_branch_name_display = "(未知分支)"
+        elif not is_valid:
+             logging.warning("仓库在分支刷新前变得无效，跳过处理分支结果。")
+             self.current_branch_name_display = "(无效仓库)"
 
-                # Update the display name regardless of whether the item was selectable
-                self.current_branch_name_display = current_branch_name if current_branch_name else ("(无分支?)" if is_valid else "(未知分支)")
-
-
-            elif is_valid:
-                logging.error(f"获取分支失败: RC={return_code}, 错误: {stderr.strip()}")
-                self._append_output(f"❌ 获取分支列表失败:\n{stderr.strip()}", QColor("red"))
-                self.current_branch_name_display = "(未知分支)"
-            elif not is_valid:
-                 logging.warning("仓库在分支刷新期间变得无效，清空分支视图。")
-                 if self.branch_list_widget: self.branch_list_widget.clear()
-                 self.current_branch_name_display = "(无效仓库)"
-
-        finally:
-            self._refresh_operation_finished()
+        self._update_status_bar_info()
 
 
     @pyqtSlot()
     def _refresh_log_view(self):
-        """刷新提交历史视图"""
         if not self.git_handler or not self.git_handler.is_valid_repo():
              logging.warning("试图刷新日志，但 GitHandler 不可用或仓库无效。")
-             if self.log_table_widget: self.log_table_widget.setRowCount(0)
-             if self.commit_details_textedit: self.commit_details_textedit.clear(); self.commit_details_textedit.setPlaceholderText("仓库无效")
-             self._refresh_operation_finished()
              return
         logging.debug("正在请求格式化日志...")
         if self.log_table_widget: self.log_table_widget.setRowCount(0)
-        if self.commit_details_textedit: self.commit_details_textedit.clear(); self.commit_details_textedit.setPlaceholderText("正在加载提交历史...")
+        if self.commit_details_textedit: self.commit_details_textedit.clear(); self.commit_details_textedit.setPlaceholderText("选中上方提交记录以查看详情...")
 
-        log_format = "%h\t%H\t%an\t%ar\t%s"
-        self.git_handler.get_log_formatted_async(
-            count=200,
-            format=log_format,
-            extra_args=["--graph", "--decorate"], # Add --decorate to show branch/tag names
-            finished_slot=self._on_log_refreshed
-        )
+        self.git_handler.get_log_formatted_async(count=200, finished_slot=self._on_log_refreshed)
 
 
     @pyqtSlot(int, str, str)
     def _on_log_refreshed(self, return_code: int, stdout: str, stderr: str):
-        """处理 Git 日志刷新的回调"""
-        try:
-            if not self.log_table_widget:
-                 logging.error("日志表格组件在日志刷新回调时未初始化。")
-                 return
+        if not self.log_table_widget:
+             logging.error("日志表格组件在日志刷新回调时未初始化。")
+             self._update_status_bar_info()
+             return
 
-            is_valid = self.git_handler.is_valid_repo()
+        if return_code == 0:
+            lines = stdout.strip().splitlines()
+            logging.debug(f"接收到日志 ({len(lines)} 条记录)。正在填充表格...")
+            self.log_table_widget.setUpdatesEnabled(False)
+            self.log_table_widget.setRowCount(0)
+            monospace_font = QFont("Courier New")
+            valid_rows = 0
 
-            if self.commit_details_textedit and self.log_table_widget.rowCount() == 0:
-                self.commit_details_textedit.setPlaceholderText("选中上方提交记录以查看详情...")
+            log_line_regex = re.compile(r'^([\s\\/|*.-]*?)?([a-fA-F0-9]+)\s+(.*?)\s+(.*?)\s+(.*)$')
 
-            if return_code == 0 and is_valid:
-                lines = stdout.strip().splitlines()
-                self.log_table_widget.setUpdatesEnabled(False)
-                self.log_table_widget.setRowCount(0)
-                monospace_font = QFont("Courier New")
-                valid_rows = 0
+            for line in lines:
+                line = line.strip()
+                if not line: continue
 
-                # Updated regex to handle the graph prefix and optional decorations
-                # Captures graph, short hash, full hash, author, date, message + decorations
-                # Example line: * c6a286a (HEAD -> main, origin/main) 	c6a286a1b92a433876c65531886f187d98d435e7	Author Name	2 hours ago	Commit message
-                # Pattern: ^(.*?)\s*([a-fA-F0-9]+)\s*(?:\(.*\))?\t([a-fA-F0-9]+)\t(.*?)\t(.*?)\t(.*)$
-                # No, simpler pattern focusing on tabs: ^[\\/|*._ -]*\s*([a-fA-F0-9]+)\t([a-fA-F0-9]+)\t(.*?)\t(.*?)\t(.*)$
-                # Need to handle decorations within the message part for display
-                # Let's use the original simple regex and add decoration display logic
-                log_line_regex = re.compile(r'^[\\/|*._ -]*\s*([a-fA-F0-9]+)\t([a-fA-F0-9]+)\t(.*?)\t(.*?)\t(.*)$')
+                match = log_line_regex.match(line)
+                if match:
+                    commit_hash = match.group(2)
+                    author = match.group(3)
+                    date = match.group(4)
+                    message = match.group(5)
 
+                    if not commit_hash:
+                         logging.warning(f"Parsed empty commit hash for line (regex match but empty hash?): {repr(line)}")
+                         continue
 
-                for line in lines:
-                    line = line.strip()
-                    if not line: continue
+                    self.log_table_widget.setRowCount(valid_rows + 1)
+                    hash_item = QTableWidgetItem(commit_hash[:7])
+                    author_item = QTableWidgetItem(author.strip())
+                    date_item = QTableWidgetItem(date.strip())
+                    message_item = QTableWidgetItem(message.strip())
 
-                    # Separate graph/decoration from the rest of the line
-                    graph_match = re.match(r'^([\\/|*._ -]+\s*)', line)
-                    graph_prefix = graph_match.group(1) if graph_match else ""
-                    data_part = line[len(graph_prefix):]
+                    flags = Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
+                    hash_item.setFlags(flags); author_item.setFlags(flags); date_item.setFlags(flags); message_item.setFlags(flags)
+                    hash_item.setData(Qt.ItemDataRole.UserRole, commit_hash)
+                    hash_item.setFont(monospace_font); message_item.setFont(monospace_font)
 
-                    match = log_line_regex.match(line) # Try original match first
-                    if not match:
-                         # Try matching without graph prefix if initial match failed
-                         match = log_line_regex.match(data_part)
+                    self.log_table_widget.setItem(valid_rows, LOG_COL_COMMIT, hash_item)
+                    self.log_table_widget.setItem(valid_rows, LOG_COL_AUTHOR, author_item)
+                    self.log_table_widget.setItem(valid_rows, LOG_COL_DATE, date_item)
+                    self.log_table_widget.setItem(valid_rows, LOG_COL_MESSAGE, message_item)
 
-                    if match:
-                        short_hash = match.group(1)
-                        full_hash = match.group(2)
-                        author = match.group(3).strip()
-                        date = match.group(4).strip()
-                        message_and_decorations = match.group(5).strip()
-
-                        # Attempt to separate message and decorations
-                        decoration_match = re.match(r'^(.*?)\s*(\(.*\))$', message_and_decorations)
-                        if decoration_match:
-                             message = decoration_match.group(1).strip()
-                             decorations = decoration_match.group(2).strip()
-                        else:
-                             message = message_and_decorations.strip()
-                             decorations = ""
-
-                        if not short_hash or not full_hash:
-                             logging.warning(f"解析到空 commit hash: {repr(line)}")
-                             continue
-
-                        self.log_table_widget.insertRow(valid_rows)
-                        hash_item = QTableWidgetItem(f"{graph_prefix}{short_hash} {decorations}".strip()) # Display graph, short hash and decorations
-                        author_item = QTableWidgetItem(author)
-                        date_item = QTableWidgetItem(date)
-                        message_item = QTableWidgetItem(message)
-
-                        flags = Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
-                        hash_item.setFlags(flags); author_item.setFlags(flags); date_item.setFlags(flags); message_item.setFlags(flags)
-                        hash_item.setData(Qt.ItemDataRole.UserRole, full_hash) # Store full hash
-
-                        # Apply monospace font only to the hash column
-                        hash_item.setFont(monospace_font)
-
-                        self.log_table_widget.setItem(valid_rows, LOG_COL_COMMIT, hash_item)
-                        self.log_table_widget.setItem(valid_rows, LOG_COL_AUTHOR, author_item)
-                        self.log_table_widget.setItem(valid_rows, LOG_COL_DATE, date_item)
-                        self.log_table_widget.setItem(valid_rows, LOG_COL_MESSAGE, message_item)
-
-                        valid_rows += 1
-                    else:
-                        # Handle lines that might be purely graph or separator lines without commit data
-                        if not re.match(r'^[\s\\/|*._-]+$', line):
-                           logging.warning(f"无法解析日志行 (格式可能不完全匹配或缺少数据): {repr(line)}")
+                    valid_rows += 1
+                else:
+                     if not re.match(r'^[\s\\/|*.-]+$', line):
+                        logging.warning(f"无法解析日志行（与预期格式不匹配?）: {repr(line)}")
 
 
-                self.log_table_widget.setRowCount(valid_rows)
-                self.log_table_widget.setUpdatesEnabled(True)
-                logging.info(f"日志表格已填充 {valid_rows} 个有效条目。")
-                self.log_table_widget.resizeColumnsToContents()
-                self.log_table_widget.horizontalHeader().setSectionResizeMode(LOG_COL_MESSAGE, QHeaderView.ResizeMode.Stretch)
+            self.log_table_widget.setUpdatesEnabled(True)
+            logging.info(f"日志表格已填充 {valid_rows} 个有效条目。")
+        else:
+            logging.error(f"获取日志失败: RC={return_code}, 错误: {stderr}")
+            self._append_output(f"❌ 获取提交历史失败:\n{stderr}", QColor("red"))
+
+        self._update_status_bar_info()
 
 
-            elif is_valid:
-                logging.error(f"获取日志失败: RC={return_code}, 错误: {stderr.strip()}")
-                self._append_output(f"❌ 获取提交历史失败:\n{stderr.strip()}", QColor("red"))
-                if self.commit_details_textedit: self.commit_details_textedit.setPlaceholderText("获取提交历史失败")
-            elif not is_valid:
-                 logging.warning("仓库在日志刷新期间变得无效，清空日志视图。")
-                 if self.log_table_widget: self.log_table_widget.setRowCount(0)
-                 if self.commit_details_textedit: self.commit_details_textedit.clear(); self.commit_details_textedit.setPlaceholderText("仓库无效")
-
-        finally:
-            self._refresh_operation_finished()
-
-
-    def _select_or_clone_repo_dialog(self):
-        options = ["选择现有仓库目录", "克隆远程仓库"]
-        choice, ok = QInputDialog.getItem(self, "选择操作", "请选择要执行的操作:", options, 0, False)
-
-        if ok:
-            if choice == "选择现有仓库目录":
-                self._select_existing_repository()
-            elif choice == "克隆远程仓库":
-                self._clone_repository_dialog()
-
-    def _select_existing_repository(self):
-        start_path = self.git_handler.get_repo_path()
-        # Suggest a reasonable starting path
+    def _select_repository(self):
+        start_path = self.git_handler.get_repo_path() if self.git_handler else None
         if not start_path or not os.path.isdir(start_path):
             start_path = os.getcwd()
-            potential_git_dir = os.path.join(os.path.expanduser("~"), 'git')
-            if os.path.isdir(potential_git_dir): start_path = potential_git_dir
-            else:
-                potential_dev_dir = os.path.join(os.path.expanduser("~"), 'dev')
-                if os.path.isdir(potential_dev_dir): start_path = potential_dev_dir
-                else: start_path = os.path.expanduser("~")
+            if not os.path.isdir(os.path.join(start_path, '.git')):
+                 start_path = os.path.expanduser("~")
+                 if os.path.isdir(os.path.join(os.path.expanduser("~"), 'git')):
+                      start_path = os.path.join(os.path.expanduser("~"), 'git')
 
-        dir_path = QFileDialog.getExistingDirectory(self, "选择 Git 仓库目录", start_path, QFileDialog.Option.ShowDirsOnly)
+        dir_path = QFileDialog.getExistingDirectory(self, "选择 Git 仓库目录", start_path)
         if dir_path:
-            self._set_repository_path(dir_path)
-
-    def _init_repository_here_dialog(self):
-        start_path = self.git_handler.get_repo_path() # Suggest current path if valid repo exists
-        if not start_path or not os.path.isdir(start_path):
-            start_path = os.getcwd() # Otherwise suggest current working dir
-
-        dir_path = QFileDialog.getExistingDirectory(self, "选择要初始化仓库的目录", start_path, QFileDialog.Option.ShowDirsOnly)
-        if dir_path:
-            git_dir_path = os.path.join(dir_path, ".git")
-            if os.path.exists(git_dir_path) and os.path.isdir(git_dir_path):
-                 reply = QMessageBox.question(self, "仓库已存在", f"目录 '{os.path.basename(dir_path)}' 似乎已经是一个 Git 仓库。\n是否仍要尝试在此目录执行 'git init'? (不推荐)",
-                                             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
-                 if reply == QMessageBox.StandardButton.No:
-                      self._show_information("操作取消", "初始化操作已取消。")
-                      # Offer to open the existing repo
-                      open_existing = QMessageBox.question(self, "打开现有仓库?", f"要打开这个现有的仓库吗?",
-                                                            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes)
-                      if open_existing == QMessageBox.StandardButton.Yes:
-                          self._set_repository_path(dir_path)
-                      return
-                 else:
-                      logging.warning(f"在已有仓库目录 '{dir_path}' 中执行 git init。")
-
-            # Set repo path first (temporarily, check_valid=False) so git commands run in this directory
-            self.git_handler.set_repo_path(dir_path, check_valid=False)
-            self._update_repo_status() # Update UI based on the *attempted* path
-            logging.info(f"请求初始化仓库于: {dir_path}")
-            # Use _run_command_list_sequentially which handles busy state and async execution
-            # Refresh on success will be handled by _update_repo_status after set_repo_path
-            self._run_command_list_sequentially(["git init"], refresh_on_success=False)
-
-
-    def _clone_repository_dialog(self):
-        repo_url, ok = QInputDialog.getText(self, "克隆仓库", "输入远程仓库 URL:", QLineEdit.EchoMode.Normal)
-        if ok and repo_url:
-            repo_url = repo_url.strip()
-            if not repo_url:
-                 self._show_warning("克隆失败", "仓库 URL 不能为空。")
+            if not self.git_handler:
+                 logging.error("仓库选择期间 GitHandler 未初始化。")
+                 self._show_warning("内部错误", "Git 处理程序未初始化。")
                  return
-
-            default_dir_name = ""
             try:
-                base = os.path.basename(repo_url.rstrip('/')) # Handle trailing slash
-                if base.endswith('.git'): base = base[:-4]
-                default_dir_name = re.sub(r'[^\w\-.]+', '', base) or "cloned_repo"
-            except Exception: default_dir_name = "cloned_repo"
+                if self.output_display: self.output_display.clear()
+                if self.diff_text_edit: self.diff_text_edit.clear()
+                if self.commit_details_textedit: self.commit_details_textedit.clear()
+                self._clear_sequence()
+                if self.status_tree_model: self.status_tree_model.clear_status()
+                if self.branch_list_widget: self.branch_list_widget.clear()
+                if self.log_table_widget: self.log_table_widget.setRowCount(0)
+                self.current_branch_name_display = None
 
-            start_path = self.git_handler.get_repo_path() # Suggest current path if valid repo exists
-            if not start_path or not os.path.isdir(start_path):
-                start_path = os.path.expanduser("~") # Otherwise suggest home dir
-
-            target_dir_tuple = QFileDialog.getSaveFileName(self, "选择克隆目标目录", os.path.join(start_path, default_dir_name))
-
-            if target_dir_tuple and target_dir_tuple[0]:
-                 target_path = target_dir_tuple[0]
-                 # Check if directory exists and is not empty
-                 if os.path.exists(target_path):
-                     if os.path.isdir(target_path) and os.listdir(target_path):
-                          self._show_warning("克隆失败", f"目标目录 '{os.path.basename(target_path)}' 已存在且不为空。请选择一个空目录或新目录名。")
-                          return
-                     elif not os.path.isdir(target_path):
-                         self._show_warning("克隆失败", f"目标路径 '{os.path.basename(target_path)}' 已存在且不是目录。请选择一个目录或新目录名。")
-                         return
-
-
-                 logging.info(f"请求克隆仓库 '{repo_url}' 到 '{target_path}'")
-
-                 # Git clone takes the *parent* directory as CWD and the target directory name as argument
-                 clone_parent_dir = os.path.dirname(target_path)
-                 clone_dir_name = os.path.basename(target_path)
-                 command = ["git", "clone", repo_url, clone_dir_name]
-
-                 # Temporarily clear repo path and update UI before cloning starts
+                self.git_handler.set_repo_path(dir_path)
+                self._update_repo_status()
+                logging.info(f"用户选择了新的仓库目录: {dir_path}")
+            except ValueError as e:
+                self._show_warning("选择仓库失败", str(e))
+                logging.error(f"设置仓库路径失败: {e}")
+                self.git_handler.set_repo_path(None)
+                self._update_repo_status()
+            except Exception as e:
+                 logging.exception("选择仓库时发生意外错误。")
+                 QMessageBox.critical(self, "意外错误", f"选择仓库时出错: {e}")
                  self.git_handler.set_repo_path(None)
                  self._update_repo_status()
 
-                 self._append_output(f"\n$ {' '.join(shlex.quote(p) for p in command)}", QColor("darkGray"))
-                 self._set_ui_busy(True)
-                 try:
-                      # Ensure parent directory exists
-                      if clone_parent_dir and not os.path.exists(clone_parent_dir):
-                           os.makedirs(clone_parent_dir, exist_ok=True)
-                 except OSError as e:
-                      logging.error(f"无法创建克隆父目录 '{clone_parent_dir}': {e}")
-                      self._show_warning("克隆错误", f"无法创建目录:\n{clone_parent_dir}\n错误: {e}")
-                      self._set_ui_busy(False)
-                      return
-
-                 self.git_handler.execute_command_async(
-                     command,
-                     on_finished_slot=lambda rc, so, se, tp=target_path: self._handle_clone_finish(rc, so, se, tp),
-                     on_progress_slot=self._handle_clone_progress,
-                     cwd=clone_parent_dir # Run clone from the PARENT directory
-                 )
-
-        elif ok:
-             self._show_warning("克隆失败", "仓库 URL 不能为空。")
-
-
-    @pyqtSlot(int, str, str, str)
-    def _handle_clone_finish(self, return_code, stdout, stderr, target_path):
-        """处理克隆操作完成的回调"""
-        if stdout: self._append_output(f"stdout:\n{stdout.strip()}")
-        if stderr: self._append_output(f"stderr:\n{stderr.strip()}")
-
-        if return_code == 0:
-            self._append_output(f"✅ 克隆成功: '{os.path.basename(target_path)}'", QColor("Green"))
-            # Set the newly cloned directory as the current repository
-            self._set_repository_path(target_path)
-            # Note: _set_repository_path will trigger _update_repo_status, which will refresh views and set busy=False
-            self._show_information("克隆成功", f"仓库已成功克隆到:\n{target_path}")
-        else:
-            err_msg = f"❌ 克隆失败 (RC: {return_code}) '{os.path.basename(target_path)}'"
-            logging.error(f"克隆失败! 返回码: {return_code}, 标准错误: {stderr.strip()}")
-            self._append_output(err_msg, QColor("red"))
-            # If clone failed, the target path is not a valid repo, so explicitly clear repo path
-            self.git_handler.set_repo_path(None)
-            self._update_repo_status() # Update UI to reflect no valid repo and set busy=False
-            self._show_warning("克隆失败", f"克隆仓库时出错。\n查看 '原始输出' 选项卡获取详细信息。")
-
-
-    @pyqtSlot(str)
-    def _handle_clone_progress(self, message):
-        """处理克隆操作的进度消息"""
-        # Avoid processing empty or noise progress messages
-        if message and not message.strip().startswith("fatal:") and not message.strip().startswith("error:"):
-             if self.status_bar and self._is_busy:
-                  # Clean up common progress prefixes
-                  display_message = re.sub(r'^(Receiving objects: \d+%|\s*|remote:).*', r'接收进度: \1', message, flags=re.IGNORECASE).strip()
-                  if not display_message: display_message = message.strip() # Fallback
-                  self.status_bar.showMessage(f"克隆进度: {display_message}", 0)
-
-
-    def _set_repository_path(self, dir_path: Optional[str]):
-         """设置当前操作的 Git 仓库路径并刷新 UI"""
-         if not self.git_handler:
-             logging.error("设置仓库路径时 GitHandler 未初始化。")
-             self._show_warning("内部错误", "Git 处理程序未初始化。")
-             return
-         try:
-             # Clear UI before setting new path to give visual feedback
-             if self.output_display: self.output_display.clear()
-             if self.diff_text_edit: self.diff_text_edit.clear(); self.diff_text_edit.setPlaceholderText("...")
-             if self.commit_details_textedit: self.commit_details_textedit.clear(); self.commit_details_textedit.setPlaceholderText("...")
-             self._clear_sequence() # Keep sequence in builder, just clear display? No, clear completely.
-             if self.status_tree_model: self.status_tree_model.clear_status()
-             if self.branch_list_widget: self.branch_list_widget.clear()
-             if self.log_table_widget: self.log_table_widget.setRowCount(0)
-             self.current_branch_name_display = None
-             QApplication.processEvents() # Update UI immediately
-
-             logging.info(f"尝试设置仓库路径为: {dir_path}")
-             self.git_handler.set_repo_path(dir_path)
-             self._update_repo_status() # This will check validity, update UI, save path, and trigger refreshes if valid
-
-         except ValueError as e:
-             self._show_warning("设置仓库失败", str(e))
-             logging.error(f"设置仓库路径失败: {e}")
-             # Ensure UI is updated to reflect invalid state and busy is off
-             self.git_handler.set_repo_path(None) # Explicitly set to None if validation failed
-             self._update_repo_status() # This handles the UI update and busy=False
-
-         except Exception as e:
-              logging.exception("设置仓库时发生意外错误。")
-              QMessageBox.critical(self, "意外错误", f"设置仓库时出错: {e}")
-              # Ensure UI is updated to reflect invalid state and busy is off
-              self.git_handler.set_repo_path(None)
-              self._update_repo_status()
-
-
     def _add_command_to_sequence(self, command_to_add: Union[str, list[str]]):
-        """添加一个 Git 命令或其部分到命令序列"""
         if isinstance(command_to_add, list):
-            # Join list parts into a single string representation, quoting each part
-            command_str = ' '.join(shlex.quote(str(p)) for p in command_to_add)
+            command_str = ' '.join(shlex.quote(part) for part in command_to_add)
         elif isinstance(command_to_add, str):
             command_str = command_to_add.strip()
         else:
@@ -1368,777 +949,315 @@ class MainWindow(QMainWindow):
         logging.debug(f"命令添加到序列: {command_str}")
 
     def _add_parameter_to_sequence(self, parameter_to_add: str):
-        """添加一个参数到命令序列的最后一行"""
         param_str = parameter_to_add.strip()
         if not param_str:
             logging.debug("Attempted to add empty parameter, ignoring.")
             return
 
-        # Add parameter to the last line if sequence is not empty, otherwise add as a new line
-        if self.current_command_sequence:
-             # Check if the last line already ends with the parameter (simple check)
-             if not self.current_command_sequence[-1].endswith(f" {param_str}"):
-                 self.current_command_sequence[-1] += f" {param_str}"
-                 if self.status_bar and not self._is_busy:
-                     self.status_bar.showMessage(f"参数 '{param_str}' 已追加到序列最后一行。", 3000)
-             else:
-                 logging.debug(f"参数 '{param_str}' 已存在于序列最后一行，忽略。")
-        else:
-            # If sequence is empty, add the parameter as the first line. User needs to add the command.
-            self.current_command_sequence.append(param_str)
-            if self.status_bar and not self._is_busy:
-                self.status_bar.showMessage(f"参数 '{param_str}' 已添加到序列新行。请手动编辑组合。", 5000)
-
-
+        self.current_command_sequence.append(param_str)
         self._update_sequence_display()
         logging.debug(f"参数添加到序列: {param_str}")
 
-        # Provide warnings for known dangerous parameters
-        dangerous_params = {
-            "--hard": "'--hard' 参数通常用于 'git reset'。\n\n请确认您知道此参数的用途，它可能导致工作区和暂存区的更改丢失。\n\n请确保它位于正确的命令之后。",
-            "-f": "'-f' 或 '--force' 参数用于强制执行操作。\n\n请确认您知道此参数的用途，它可能覆盖远程分支或本地未合并的分支。\n\n请确保它位于正确的命令之后。",
-            "--force": "'-f' 或 '--force' 参数用于强制执行操作。\n\n请确认您知道此参数的用途，它可能覆盖远程分支或本地未合并的分支。\n\n请确保它位于正确的命令之后。",
-            "-x": "'-x' 参数通常用于 'git clean'，会删除忽略的文件！\n\n此操作非常危险，可能删除不应删除的文件（如编译输出、依赖项）。\n\n请万分小心使用，并确保它位于 'git clean' 命令之后。"
-        }
-        if param_str in dangerous_params:
-             self._show_warning("警告: 危险参数", dangerous_params[param_str])
+        if self.status_bar:
+             self.status_bar.showMessage("参数已添加到序列末尾。请手动编辑以将其与命令组合。", 5000)
 
-
-    @pyqtSlot()
-    def _sequence_text_changed(self):
-        """当命令序列文本框内容被手动编辑时更新内部序列列表"""
-        # Ensure we don't re-trigger this slot when updating the text from _update_sequence_display
-        if self.sequence_display and not self.sequence_display.signalsBlocked():
-            text = self.sequence_display.toPlainText()
-            # Split by newlines and remove empty lines/whitespace
-            self.current_command_sequence = [line.strip() for line in text.splitlines() if line.strip()]
-            # logging.debug(f"Sequence builder updated by user edit: {self.current_command_sequence}") # Can be too verbose
+        if param_str == "--hard":
+             self._show_warning("警告: --hard 参数",
+                                 "'--hard' 参数通常用于 'git reset'。\n\n请确认您知道此参数的用途，它可能导致工作区和暂存区的更改丢失。\n\n请手动将其移动到 'git reset' 命令后方。")
+        elif param_str == "-f" or param_str == "--force":
+             self._show_warning("警告: -f 参数",
+                                 "'-f' 参数用于强制执行操作。\n\n请确认您知道此参数的用途，它可能覆盖远程分支或本地未合并的分支。\n\n请手动将其移动到对应的命令后方。")
 
     def _add_files_to_sequence(self):
-        """通过对话框获取文件路径并添加到 'git add' 命令"""
         if not self._check_repo_and_warn(): return
-        files_str, ok = QInputDialog.getText(self, "添加文件到暂存区", "输入要暂存的文件或目录 (用空格分隔，可用引号):\n(例如: src/main.py \"path with spaces/file.txt\" . )", QLineEdit.EchoMode.Normal)
+        files_str, ok = QInputDialog.getText(self, "暂存文件", "输入要暂存的文件或目录 (用空格分隔，可用引号):", QLineEdit.EchoMode.Normal)
         if ok and files_str:
             try:
-                # Use shlex.split to correctly handle paths with spaces and quotes
                 file_list = shlex.split(files_str.strip())
                 if file_list:
-                    # Use '--' to separate file paths from potential options
-                    command_parts = ["git", "add", "--"] + [shlex.quote(f) for f in file_list]
-                    self._add_command_to_sequence(command_parts)
+                    commands = [f"git add -- {shlex.quote(file_path)}" for file_path in file_list]
+                    for cmd in commands: self._add_command_to_sequence(cmd)
                 else:
-                    self._show_information("无操作", "未输入有效的文件或目录。")
+                    self._show_information("无操作", "未输入文件。")
             except ValueError as e:
-                self._show_warning("输入错误", f"无法解析文件列表: {e}\n请确保引号正确配对。")
+                self._show_warning("输入错误", f"无法解析文件列表: {e}")
                 logging.warning(f"无法解析暂存文件输入 '{files_str}': {e}")
-        elif ok: # User clicked OK but left input empty
-            self._show_information("无操作", "未输入文件或目录。")
+        elif ok:
+            self._show_information("无操作", "未输入文件。")
 
 
     def _add_commit_to_sequence(self):
-        """通过对话框获取提交信息并添加到 'git commit -m' 命令"""
         if not self._check_repo_and_warn(): return
-        has_staged = False
-        if self.status_tree_model:
-             # Check if the staged root has children
-             has_staged = self.status_tree_model.staged_root.rowCount() > 0
-
-        commit_msg, ok = QInputDialog.getMultiLineText(self, "提交暂存的更改", "输入提交信息 (第一行为主题):", "")
-        # Use shlex.quote for the entire message string to handle quotes/spaces within the message
-        if ok and commit_msg.strip():
+        commit_msg, ok = QInputDialog.getText(self, "提交暂存的更改", "输入提交信息:", QLineEdit.EchoMode.Normal)
+        if ok and commit_msg:
             self._add_command_to_sequence(f"git commit -m {shlex.quote(commit_msg.strip())}")
-        elif ok and not commit_msg.strip():
-             self._show_warning("提交中止", "提交信息不能为空。")
+        elif ok and not commit_msg: self._show_warning("提交中止", "提交信息不能为空。")
 
 
     def _add_commit_am_to_sequence(self):
-        """通过对话框获取提交信息并添加到 'git commit -am' 命令"""
         if not self._check_repo_and_warn(): return
-        has_tracked_changes = False
-        if self.status_tree_model:
-             # Check if there are any staged or unstaged *tracked* files
-             # Untracked files are not included by 'commit -a'
-             has_tracked_changes = (self.status_tree_model.staged_root.rowCount() > 0 or
-                                    self.status_tree_model.unstage_root.rowCount() > 0 or
-                                    self.status_tree_model.unmerged_root.rowCount() > 0) # Unmerged are tracked
-
-        if not has_tracked_changes:
-             self._show_warning("无法提交", "没有检测到已跟踪文件的更改（已暂存、未暂存或未合并）。\n'commit -am' 不会提交未跟踪的文件。")
-             return
-
-        commit_msg, ok = QInputDialog.getMultiLineText(self, "暂存所有已跟踪文件并提交", "输入提交信息 (第一行为主题):", "")
-        if ok and commit_msg.strip():
+        commit_msg, ok = QInputDialog.getText(self, "暂存所有已跟踪文件并提交", "输入提交信息:", QLineEdit.EchoMode.Normal)
+        if ok and commit_msg:
             self._add_command_to_sequence(f"git commit -am {shlex.quote(commit_msg.strip())}")
-        elif ok and not commit_msg.strip():
-            self._show_warning("提交中止", "提交信息不能为空。")
+        elif ok and not commit_msg: self._show_warning("提交中止", "提交信息不能为空。")
 
     def _add_merge_to_sequence(self):
-        """通过对话框选择或输入分支/提交添加到 'git merge' 命令"""
         if not self._check_repo_and_warn(): return
-        branches = []
-        if self.branch_list_widget:
-            # Populate list with local branch names (exclude remote tracking branches and detached HEAD)
-            for i in range(self.branch_list_widget.count()):
-                item = self.branch_list_widget.item(i)
-                branch_name = item.text().strip()
-                # Exclude remote branches and detached HEAD state for merge suggestions
-                if not branch_name.startswith("remotes/") and not branch_name.startswith("("):
-                    # Remove current branch indicator if present (shouldn't be needed with git branch --format)
-                    branch_name = branch_name.lstrip('* ').strip()
-                    if branch_name: # Add only non-empty names
-                         branches.append(branch_name)
-
-        # Offer current branch as default input but not in the list of suggestions (can't merge current branch into itself)
-        current_branch = self.current_branch_name_display if self.current_branch_name_display and not self.current_branch_name_display.startswith('(') else ""
-        # Filter current branch out of suggestions
-        suggested_branches = sorted([b for b in branches if b != current_branch])
-
-
-        merge_target, ok = QInputDialog.getItem(self, "合并分支/提交", "选择或输入要合并的分支名、标签或提交哈希:", suggested_branches, 0, True)
-
+        merge_target, ok = QInputDialog.getText(self, "合并分支/提交", "输入要合并的分支名、标签或提交哈希:", QLineEdit.EchoMode.Normal)
         if ok and merge_target:
             clean_target = merge_target.strip()
             if not clean_target:
-                 self._show_warning("操作取消", "合并目标不能为空。")
+                 self._show_warning("操作取消", "目标名称不能为空。")
                  return
-            # Use shlex.quote for the target reference
             self._add_command_to_sequence(f"git merge {shlex.quote(clean_target)}")
-        elif ok and not merge_target: # User clicked OK but input was empty or became empty after strip
-            self._show_information("无操作", "合并目标不能为空。")
-
+        elif ok and not merge_target:
+            self._show_warning("操作取消", "目标名称不能为空。")
 
     def _add_checkout_to_sequence(self):
-        """通过对话框选择或输入引用/路径添加到 'git checkout' 或 'git restore' 命令"""
         if not self._check_repo_and_warn(): return
-        # Suggest recent commits and branches/tags
-        refs = set(["HEAD", "HEAD~1"]) # Use a set to avoid duplicates
-
-        if self.branch_list_widget:
-            for i in range(self.branch_list_widget.count()):
-                 item = self.branch_list_widget.item(i)
-                 branch_name = item.text().strip()
-                 if not branch_name.startswith("("): # Exclude Detached HEAD display
-                    # Clean up leading '*' for current branch if present
-                    branch_name = branch_name.lstrip('* ').strip()
-                    if branch_name:
-                         refs.add(branch_name) # Add all valid branch/remote names
-
-        if self.log_table_widget:
-            # Add short hashes of recent commits
-            for r in range(min(20, self.log_table_widget.rowCount())): # Add up to 20 recent commits
-                hash_item = self.log_table_widget.item(r, LOG_COL_COMMIT)
-                if hash_item:
-                    # Extract just the short hash from the displayed text (which includes graph/decorations)
-                    displayed_hash_text = hash_item.text().strip()
-                    short_hash_match = re.search(r'\b([a-fA-F0-9]{7,})\b', displayed_hash_text) # Find first potential hash
-                    if short_hash_match:
-                         refs.add(short_hash_match.group(1))
-
-        # Also suggest common checkout targets like files or specific commits
-        suggested_targets = sorted(list(refs)) + ["-- <file_path>"] # Add a placeholder for file paths
-
-        checkout_target, ok = QInputDialog.getItem(self, "切换/恢复分支/提交/文件", "选择或输入目标 (分支, 标签, 提交, -- <文件路径>):\n例如: main, HEAD~1, remotes/origin/dev, -- README.md", suggested_targets, 0, True)
-
+        checkout_target, ok = QInputDialog.getText(self, "切换分支/提交/文件", "输入要切换到的分支名、标签、提交哈希或文件路径 (使用 -- <path>):\n例如: main, HEAD~1, -- README.md", QLineEdit.EchoMode.Normal)
         if ok and checkout_target:
             clean_target = checkout_target.strip()
             if not clean_target:
-                 self._show_warning("操作取消", "切换/恢复目标不能为空。")
+                 self._show_warning("操作取消", "目标不能为空。")
                  return
-
-            # Check for the file path syntax
-            if clean_target.startswith("--"):
-                 path_part = clean_target[2:].strip()
-                 if not path_part:
-                      self._show_warning("输入错误", "使用 '--' 恢复文件时必须提供文件或目录路径。")
-                      return
-                 # Use git restore for path arguments (modern alternative to checkout --)
-                 self._add_command_to_sequence(f"git restore -- {shlex.quote(path_part)}")
+            if clean_target.startswith("-- "):
+                 parts = clean_target.split(" ", 1)
+                 if len(parts) > 1:
+                      quoted_path = shlex.quote(parts[1].strip())
+                      self._add_command_to_sequence(f"git checkout -- {quoted_path}")
+                 else:
+                      self._show_warning("输入错误", "无效的文件路径格式。应为 '-- <path>'")
             else:
-                # For non-path targets, use git checkout
                 self._add_command_to_sequence(f"git checkout {shlex.quote(clean_target)}")
         elif ok and not checkout_target:
-            self._show_information("操作取消", "切换/恢复目标不能为空。")
-
+            self._show_information("操作取消", "目标不能为空。")
 
     def _add_reset_to_sequence(self):
-        """通过对话框选择模式/目标添加到 'git reset' 命令"""
         if not self._check_repo_and_warn(): return
-        # Suggest common reset targets/modes
-        options = ["--soft HEAD~1", "--mixed HEAD~1", "--hard HEAD~1", "HEAD", "-- "] # Add HEAD and -- as options
-        reset_target, ok = QInputDialog.getItem(self, "重置 (Reset)", "选择模式/目标或输入自定义 (例如: --hard <commit>, -- <file>):", options, 0, True)
-
+        reset_target, ok = QInputDialog.getText(self, "重置 (Reset)", "输入重置目标和模式 (例如: --hard HEAD~1, --soft <commit>, -- <file>):", QLineEdit.EchoMode.Normal)
         if ok and reset_target:
             clean_target = reset_target.strip()
             if not clean_target:
-                 self._show_warning("操作取消", "重置目标不能为空。")
+                 self._show_warning("操作取消", "目标不能为空。")
                  return
-
-            # Warn for --hard
-            if "--hard" in clean_target.split(): # Check if --hard is a distinct argument
+            if "--hard" in clean_target.lower():
                  reply = QMessageBox.warning(self, "⚠️ 危险操作: git reset --hard",
-                                              f"命令包含 '--hard'，将丢弃工作区和暂存区匹配的更改！\n目标: '{clean_target}'\n\n此操作通常不可撤销！\n\n确定要添加此命令到序列吗？",
+                                              "'git reset --hard' 将丢弃工作区和暂存区的所有更改！\n\n此操作不可撤销！\n\n确定要继续吗？",
                                               QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
                                               QMessageBox.StandardButton.Cancel)
                  if reply != QMessageBox.StandardButton.Yes:
-                      self._show_information("操作取消", "已取消添加 Reset 命令。")
+                      self._show_information("操作取消", "已取消重置操作。")
                       return
 
-            # Handle file path syntax (using git restore is preferred, but reset -- is also valid)
-            if clean_target.startswith("--"):
-                 path_part = clean_target[2:].strip()
-                 if not path_part:
-                      self._show_warning("输入错误", "使用 '--' 时必须提供文件或目录路径。")
-                      return
-                 # Note: git reset -- path... unstages files. git restore -- path... discards worktree changes.
-                 # The dialog text says "-- <file>" which implies unstaging.
-                 self._add_command_to_sequence(f"git reset HEAD -- {shlex.quote(path_part)}") # Add HEAD for clarity
-
-            else:
-                 try:
-                      # Split the target into parts to add to the command list
-                      parts = shlex.split(clean_target)
-                      if parts:
-                           # Add "git reset" prefix and the parsed parts
-                           self._add_command_to_sequence(["git", "reset"] + [shlex.quote(p) for p in parts])
-                      else:
-                           # Should not happen if clean_target is not empty, but handle defensively
-                           self._show_information("无操作", "未输入有效的重置参数。")
-                 except ValueError:
-                       self._show_warning("输入错误", "无法解析 reset 参数，请检查引号。")
-                       return
-
-        elif ok and not reset_target: # User clicked OK but input was empty
-            self._show_information("操作取消", "重置目标不能为空。")
+            self._add_command_to_sequence(f"git reset {clean_target}")
+        elif ok and not reset_target:
+            self._show_information("操作取消", "目标不能为空。")
 
     def _add_revert_to_sequence(self):
-        """通过对话框选择或输入提交添加到 'git revert' 命令"""
         if not self._check_repo_and_warn(): return
-        recent_commits = []
-        if self.log_table_widget:
-            # Add up to 10 recent commits as suggestions
-            for r in range(min(10, self.log_table_widget.rowCount())):
-                hash_item = self.log_table_widget.item(r, LOG_COL_COMMIT)
-                msg_item = self.log_table_widget.item(r, LOG_COL_MESSAGE)
-                if hash_item and msg_item:
-                    short_hash = hash_item.text().strip().split()[0] # Get just the short hash from display text
-                    msg = msg_item.text()
-                    full_hash = hash_item.data(Qt.ItemDataRole.UserRole) or short_hash # Get full hash from data
-                    recent_commits.append(f"{short_hash} - {msg[:50]} | {full_hash}") # Store full hash after '|'
-
-        # Display format and internal value mapping
-        display_items = [item.split(' | ')[0] for item in recent_commits] # Items shown in dialog
-        internal_values = {item.split(' | ')[0].strip(): item.split(' | ')[1].strip() for item in recent_commits if ' | ' in item} # Map display -> full hash
-
-        commit_ref_display, ok = QInputDialog.getItem(self, "撤销提交 (Revert)", "选择或输入要撤销的提交 (哈希, ref):", display_items, 0, True)
-
-        if ok and commit_ref_display:
-            clean_ref_display = commit_ref_display.strip()
-            if not clean_ref_display:
-                 self._show_warning("操作取消", "提交引用不能为空。")
+        commit_hash, ok = QInputDialog.getText(self, "撤销提交 (Revert)", "输入要撤销的提交哈希 (commit hash):", QLineEdit.EchoMode.Normal)
+        if ok and commit_hash:
+            clean_hash = commit_hash.strip()
+            if not clean_hash:
+                 self._show_warning("操作取消", "提交哈希不能为空。")
                  return
+            if not re.match(r'^[a-fA-F0-9]+$', clean_hash):
+                 reply = QMessageBox.question(self, "警告", f"'{clean_hash}' 看起来不像一个有效的提交哈希。确定要继续吗？", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Cancel)
+                 if reply != QMessageBox.StandardButton.Yes:
+                      self._show_information("操作取消", "已取消撤销操作。")
+                      return
 
-            # Get the actual commit reference (full hash if selected from list, otherwise use input)
-            commit_ref = internal_values.get(clean_ref_display, clean_ref_display) # Use full hash from map, or user input
-
-            logging.info(f"请求撤销提交: {commit_ref}")
-            # Use shlex.quote for the commit reference
-            self._add_command_to_sequence(f"git revert {shlex.quote(commit_ref)}")
-
-        elif ok and not commit_ref_display: # User clicked OK but input was empty
-            self._show_information("操作取消", "提交引用不能为空。")
-
+            self._add_command_to_sequence(f"git revert {shlex.quote(clean_hash)}")
+        elif ok and not commit_hash:
+            self._show_information("操作取消", "提交哈希不能为空。")
 
     def _add_rebase_to_sequence(self):
-        """通过对话框选择或输入目标添加到 'git rebase' 命令"""
         if not self._check_repo_and_warn(): return
-        targets = set()
-        common_bases = ["main", "master", "develop"] # Add common branch names
-
-        # Add remote tracking branches as potential rebase targets
-        if self.branch_list_widget:
-             for i in range(self.branch_list_widget.count()):
-                  item = self.branch_list_widget.item(i)
-                  branch_name = item.text().strip()
-                  # Include remote branches and common bases
-                  if branch_name.startswith("remotes/") or branch_name in common_bases:
-                       targets.add(branch_name.lstrip('* ').strip()) # Add cleaned name
-
-        # Add current branch's upstream if exists (more advanced, maybe skip for simplicity unless needed)
-        # result = self.git_handler.execute_command_sync(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
-        # if result and result.returncode == 0:
-        #      upstream_branch = result.stdout.strip().replace("refs/remotes/", "")
-        #      if upstream_branch: targets.add(f"origin/{upstream_branch.split('/', 1)[1]}") # Assuming origin
-
-        # Add recent commits as potential interactive rebase targets (e.g. 'rebase -i HEAD~5')
-        if self.log_table_widget and self.log_table_widget.rowCount() > 0:
-             targets.add(f"HEAD~{min(5, self.log_table_widget.rowCount())}") # Suggest rebasing last few commits
-             targets.add("HEAD") # Suggest rebase onto current branch (noop unless interactive)
-             if self.log_table_widget.rowCount() > 1:
-                  targets.add(f"HEAD~1") # Suggest rebase onto parent of HEAD
-
-
-        suggested_targets = sorted(list(targets)) + ["-i <ref>"] # Add interactive option hint
-
-        rebase_target, ok = QInputDialog.getItem(self, "变基 (Rebase)", "选择或输入变基目标 (例如: main, origin/feature, HEAD~5, -i HEAD~3):", suggested_targets, 0, True)
-
+        rebase_target, ok = QInputDialog.getText(self, "变基 (Rebase)", "输入变基目标 (例如: main, HEAD~1, origin/feature):", QLineEdit.EchoMode.Normal)
         if ok and rebase_target:
             clean_target = rebase_target.strip()
             if not clean_target:
                  self._show_warning("操作取消", "变基目标不能为空。")
                  return
 
-            # Simple check for interactive flag
-            is_interactive = clean_target.startswith("-i") or " --interactive" in clean_target
-
-            confirmation_msg = f"确定要将当前分支变基到 '{clean_target}' 吗？"
-            if is_interactive:
-                 confirmation_msg += "\n\n这将启动交互式变基。"
-            confirmation_msg += "\n\n变基会重写提交历史，可能需要解决冲突。请确保您理解其影响！"
-            confirmation_msg += f"\n\n将添加命令: git rebase {clean_target}"
-
-
+            confirmation_msg = f"确定要将当前分支变基到 '{clean_target}' 吗？\n\n将执行: git rebase {clean_target}\n\n变基是一个复杂的操作，可能需要手动解决冲突。请确保您理解其影响！"
             reply = QMessageBox.question(self, "确认变基", confirmation_msg,
                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
                                         QMessageBox.StandardButton.Cancel)
 
             if reply == QMessageBox.StandardButton.Yes:
-                logging.info(f"添加变基命令到序列: git rebase {clean_target}")
-                # Use shlex.quote for the target part if not interactive, or parse interactive args
-                if is_interactive:
-                     # For interactive, assume user inputs correctly or warn
-                     # A full shlex.split on the whole string is best
-                     try:
-                         command_parts = shlex.split(f"git rebase {clean_target}")
-                         self._add_command_to_sequence(command_parts)
-                     except ValueError:
-                          self._show_warning("输入错误", "无法解析变基参数，请检查引号。")
-                          return
-                else:
-                     self._add_command_to_sequence(f"git rebase {shlex.quote(clean_target)}")
+                logging.info(f"请求变基到: {clean_target}")
+                self._add_command_to_sequence(f"git rebase {shlex.quote(clean_target)}")
             else:
-                 self._show_information("操作取消", "变基命令未添加到序列。")
+                 self._show_information("操作取消", "变基操作已取消。")
 
-        elif ok and not rebase_target: # User clicked OK but input was empty
+        elif ok and not rebase_target:
             self._show_information("操作取消", "变基目标不能为空。")
 
 
     def _add_stash_save_to_sequence(self):
-        """通过对话框获取消息和选项添加到 'git stash save' 命令"""
         if not self._check_repo_and_warn(): return
-        has_changes_to_stash = False
-        if self.status_tree_model:
-             # Check if there are any changes (staged, unstaged, or untracked)
-             has_changes_to_stash = (self.status_tree_model.staged_root.rowCount() > 0 or
-                                     self.status_tree_model.unstage_root.rowCount() > 0 or
-                                     self.status_tree_model.untracked_root.rowCount() > 0 or
-                                     self.status_tree_model.unmerged_root.rowCount() > 0)
-        if not has_changes_to_stash:
-             self._show_information("无操作", "工作区和暂存区没有更改可以 Stash。")
-             return
-
         stash_message, ok = QInputDialog.getText(self, "保存工作区 (Stash Save)", "输入 Stash 消息 (可选):", QLineEdit.EchoMode.Normal)
-        if ok: # ok is True even if message is empty
-            # Get untracked option only if message input was successful (OK button pressed)
-            include_untracked, ok_untracked = QInputDialog.getItem(self, "包含未跟踪文件?", "是否要包含未跟踪的文件 (git stash save -u)?", ["否", "是"], 0, False)
-
-            command_parts = ["git", "stash", "push"] # 'stash push' is the modern form of 'stash save'
-
-            # Add include untracked flag if selected
-            if ok_untracked and include_untracked == "是":
-                command_parts.append("-u")
-
-            # Add message if provided
+        if ok:
             if stash_message.strip():
-                command_parts.extend(["-m", stash_message.strip()])
-
-            # Add command to sequence, quoting the message
-            # Note: shlex.quote is handled inside _add_command_to_sequence if parts list is passed
-            self._add_command_to_sequence(command_parts)
-
-        elif ok: # User clicked OK but left input empty (handled by the strip() check inside)
-             pass # Do nothing if message input cancelled
+                self._add_command_to_sequence(f"git stash save {shlex.quote(stash_message.strip())}")
+            else:
+                self._add_command_to_sequence("git stash save")
 
     def _add_tag_to_sequence(self):
-        """通过对话框获取标签名和消息添加到 'git tag' 命令"""
         if not self._check_repo_and_warn(): return
-        tag_name, ok = QInputDialog.getText(self, "创建标签 (Tag)", "输入标签名称 (例如: v1.0.0):", QLineEdit.EchoMode.Normal)
+        tag_name, ok = QInputDialog.getText(self, "创建标签 (Tag)", "输入标签名称:", QLineEdit.EchoMode.Normal)
         if ok and tag_name:
-            clean_name = tag_name.strip();
-            # Basic validation for tag names
-            if not clean_name or not re.match(r'^[^\s~^:?*\[\\]+$', clean_name) or clean_name.endswith('.lock') or clean_name.startswith('.') or '..' in clean_name:
-                self._show_warning("操作取消", f"标签名称 '{clean_name}' 无效。\n\n请遵循 Git 标签命名规则。")
+            clean_name = tag_name.strip()
+            if not clean_name:
+                self._show_warning("操作取消", "标签名称不能为空。")
                 return
 
-            message_reply = QMessageBox.question(self, "创建附注标签?", "是否要创建附注标签 (-a) 并添加消息?\n(轻量标签则直接创建)",
-                                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            message_reply = QMessageBox.question(self, "添加标签消息", "是否要为标签添加注释消息?",
+                                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
                                                  QMessageBox.StandardButton.No)
 
-            command_parts = ["git", "tag"]
+            command = f"git tag {shlex.quote(clean_name)}"
             if message_reply == QMessageBox.StandardButton.Yes:
-                 command_parts.append("-a")
-                 tag_message, msg_ok = QInputDialog.getMultiLineText(self, "标签消息", "输入标签的附注消息:", "")
-                 if msg_ok: # OK button pressed even if message empty
-                     # Git will open an editor if -a is used without -m or empty -m
-                     if tag_message.strip():
-                          command_parts.extend(["-m", tag_message.strip()])
-                     # If message is empty and -a is used, git will open editor. This is standard.
-                 else:
-                      self._show_information("操作取消", "附注标签消息输入已取消，仅创建轻量标签。")
-                      # Fallback to lightweight tag if message input is cancelled after saying Yes to annotated tag
-                      command_parts = ["git", "tag"] # Reset command parts for lightweight tag
+                 tag_message, msg_ok = QInputDialog.getText(self, "标签消息", "输入标签的注释消息:", QLineEdit.EchoMode.Normal)
+                 if msg_ok and tag_message.strip():
+                      command = f"git tag -a {shlex.quote(clean_name)} -m {shlex.quote(tag_message.strip())}"
+                 elif msg_ok:
+                      pass
 
-
-            command_parts.append(clean_name) # Add tag name (quoted by _add_command_to_sequence)
-
-            # Optionally add target commit/ref if not tagging HEAD
-            # target_ref, ref_ok = QInputDialog.getText(self, "标签目标", "基于哪个提交/引用创建标签? (留空表示 HEAD):", QLineEdit.EchoMode.Normal, "HEAD")
-            # if ref_ok and target_ref.strip() and target_ref.strip().lower() != "head":
-            #      command_parts.append(target_ref.strip())
-
-
-            self._add_command_to_sequence(command_parts)
-
-
-        elif ok and not tag_name: # User clicked OK but input was empty
+            self._add_command_to_sequence(command)
+        elif ok and not tag_name:
             self._show_information("操作取消", "标签名称不能为空。")
 
     def _add_restore_to_sequence(self):
-        """通过对话框获取文件和来源添加到 'git restore' 命令"""
         if not self._check_repo_and_warn(): return
 
-        files_str, ok = QInputDialog.getText(self, "恢复文件 (Restore)", "输入要恢复的文件/目录 (用空格分隔，可用引号):\n(例如: src/main.py \"path with spaces/file.txt\" . )", QLineEdit.EchoMode.Normal)
+        dialog_title = "恢复文件 (Restore)"
+        dialog_prompt = "输入要恢复的文件路径或目录 (用空格分隔，可用引号):"
+        files_str, ok = QInputDialog.getText(self, dialog_title, dialog_prompt, QLineEdit.EchoMode.Normal)
 
         if ok and files_str:
             try:
                 file_list = shlex.split(files_str.strip())
                 if file_list:
-                     restore_source, source_ok = QInputDialog.getItem(self, "选择恢复来源",
-                                                                       "从哪里恢复文件?\n('暂存区': 从暂存区恢复到工作区)\n('HEAD': 从 HEAD 恢复到暂存区，也清空工作区)",
-                                                                       ["暂存区 (Worktree)", "HEAD (Staged)"], 0, False)
+                     restore_source, source_ok = QInputDialog.getItem(self, "选择恢复来源", "从哪里恢复文件?\n(工作树=丢弃未暂存, 暂存区=丢弃已暂存)",
+                                                                       ["工作树", "暂存区"], 0, False)
 
                      if not source_ok:
                           self._show_information("操作取消", "文件恢复已取消。")
                           return
 
-                     is_staged_source = (restore_source == "HEAD (Staged)")
+                     is_staged_source = (restore_source == "暂存区")
 
-                     command_parts = ["git", "restore"]
-                     if is_staged_source:
-                         command_parts.append("--staged")
-                         # Optionally, add --worktree to restore to worktree AND staged (git restore --source=HEAD path)
-                         # restore_worktree_also, wt_ok = QInputDialog.getItem(self, "同时恢复到工作区?", "从 HEAD 恢复到暂存区后，是否同时恢复到工作区? (git restore path)", ["否", "是"], 0, False)
-                         # if wt_ok and restore_worktree_also == "是":
-                         #      # This requires a separate command: git restore --source=HEAD --worktree path OR git restore path after git restore --staged path
-                         #      # Simpler to just add git restore --staged path and let user add the second command manually if needed
-                         pass
+                     commands = []
+                     for file_path in file_list:
+                          command = ["git", "restore"]
+                          if is_staged_source: command.append("--staged")
+                          command.append("--")
+                          command.append(shlex.quote(file_path))
+                          commands.append(' '.join(command))
 
-
-                     command_parts.append("--") # Separator for paths
-                     command_parts.extend([shlex.quote(f) for f in file_list])
-
-                     self._add_command_to_sequence(command_parts)
+                     for cmd in commands: self._add_command_to_sequence(cmd)
                 else:
-                    self._show_information("无操作", "未输入有效的文件或目录。")
+                    self._show_information("无操作", "未输入文件。")
             except ValueError as e:
-                self._show_warning("输入错误", f"无法解析文件列表: {e}\n请确保引号正确配对。")
+                self._show_warning("输入错误", f"无法解析文件列表: {e}")
                 logging.warning(f"无法解析 restore file input '{files_str}': {e}")
-        elif ok: # User clicked OK but input was empty
-            self._show_information("无操作", "未输入文件或目录。")
+        elif ok:
+            self._show_information("无操作", "未输入文件。")
 
 
     def _update_sequence_display(self):
-        """根据内部序列列表更新文本框内容"""
-        if self.sequence_display:
-            self.sequence_display.blockSignals(True) # Prevent textChanged signal loop
-            self.sequence_display.setText("\n".join(self.current_command_sequence))
-            self.sequence_display.blockSignals(False)
-            # Move cursor to the end
-            cursor = self.sequence_display.textCursor()
-            cursor.movePosition(QTextCursor.MoveOperation.End)
-            self.sequence_display.setTextCursor(cursor)
-
+        if self.sequence_display: self.sequence_display.setText("\n".join(self.current_command_sequence))
 
     def _clear_sequence(self):
-        """清空命令序列构建器"""
         self.current_command_sequence = []
         self._update_sequence_display()
-        if self.status_bar and not self._is_busy:
-            self.status_bar.showMessage("命令序列已清空", 2000)
+        if self.status_bar: self.status_bar.showMessage("命令序列已清空", 2000)
         logging.info("命令序列已清空。")
 
     def _execute_sequence(self):
-        """执行命令序列构建器中的命令"""
-        # Capture the current state of the text editor
-        self._sequence_text_changed()
-        sequence_to_run = list(self.current_command_sequence)
+        if not self._check_repo_and_warn(): return
+        if not self.current_command_sequence: self._show_information("提示", "命令序列为空，无需执行."); return
+        self._run_command_list_sequentially(list(self.current_command_sequence))
 
-        if not sequence_to_run:
-            self._show_information("提示", "命令序列为空，无需执行。");
-            return
-
-        # _run_command_list_sequentially handles busy state and repo check
-        self._run_command_list_sequentially(sequence_to_run)
-
-
-    def _set_ui_busy(self, busy: bool, force_update: bool = False):
-        """设置UI的繁忙状态，启用/禁用相关控件并控制加载动画和状态栏"""
-        if not force_update and self._is_busy == busy: return
-        self._is_busy = busy
-
-        is_repo_valid = self.git_handler.is_valid_repo()
-        # Widgets depending on repo validity and *not* being busy
-        should_enable_repo_dependent = is_repo_valid and not busy
-
+    def _set_ui_busy(self, busy: bool):
         for widget in self._repo_dependent_widgets:
             if widget:
-                 # Check if widget is not None before accessing setEnabled
-                 widget.setEnabled(should_enable_repo_dependent)
+                widget.setEnabled(not busy and self.git_handler.is_valid_repo())
 
-        # Actions that should always be enabled regardless of repo or busy state
-        always_enabled_texts = [
-             "选择或克隆仓库(&O)...", "在此初始化新仓库(&I)...", "克隆远程仓库(&C)...",
-             "Git 全局配置(&G)...",
-             "查看 Git 文档(&D)", "报告问题(&I)...", "关于(&A)",
-             "清空原始输出", "退出(&X)" # Ensure Exit is always enabled
-         ]
+        # Ensure Init button remains enabled even when busy or repo invalid
+        init_button = None
+        # Search through layouts for the Init button
+        for layout in [
+            self.findChildren(QHBoxLayout, name='command_builder_layout_1'),
+            self.findChildren(QHBoxLayout, name='command_builder_layout_2'),
+            self.findChildren(QHBoxLayout, name='command_builder_layout_3')
+        ]:
+             if layout:
+                  for item_index in range(layout[0].count()):
+                       item = layout[0].itemAt(item_index)
+                       if item.widget() and isinstance(item.widget(), QPushButton) and item.widget().text() == "Init":
+                            init_button = item.widget()
+                            break
+             if init_button: break
+
+        if init_button:
+             init_button.setEnabled(not busy)
+
 
         for action in self.findChildren(QAction):
-            if action.text() in always_enabled_texts:
-                # For these specific actions, enabled state depends *only* on busy state for non-busy actions
-                # But Exit action should always be enabled
-                if action.text() == "退出(&X)":
-                     action.setEnabled(True)
-                else:
-                    action.setEnabled(not busy) # Disable these during busy operations
-
-        # Special case for Init and Select Repo buttons (enabled even if no repo)
-        if self.init_button:
-            self.init_button.setEnabled(not busy)
-        if self.select_repo_button:
-            self.select_repo_button.setEnabled(not busy)
-
-        # Update QShortcut enabled state via ShortcutManager
-        self.shortcut_manager.set_shortcuts_enabled(should_enable_repo_dependent)
+            action_text = action.text()
+            if action_text in ["选择仓库(&O)...", "Git 全局配置(&G)...", "退出(&X)", "关于(&A)", "清空原始输出"]:
+                action.setEnabled(True) # These actions should always be enabled
 
 
-        # Manage loading animation and status bar message
-        if self.loading_label:
-            if busy:
-                self.loading_label.show()
-                if self.loading_movie and self.loading_movie.isValid():
-                     self.loading_movie.start()
-                if self.status_bar: self.status_bar.showMessage("⏳ 正在执行...", 0)
-            else:
-                if self.loading_movie and self.loading_movie.isValid():
-                     self.loading_movie.stop()
-                self.loading_label.hide()
-                # Only update status bar info if not busy
-                if not force_update:
-                     self._update_status_bar_info()
-
-        # Change cursor
         if busy:
+            if self.status_bar: self.status_bar.showMessage("⏳ 正在执行...", 0)
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         else:
             QApplication.restoreOverrideCursor()
-            # Status bar info is updated via _update_status_bar_info() called after busy=False
+            self._update_status_bar_info()
 
     @pyqtSlot()
     def _execute_command_from_input(self):
-        """从命令行输入框获取命令并执行"""
         if not self.command_input: return
         command_text = self.command_input.text().strip();
         if not command_text: return
         logging.info(f"用户从命令行输入: {command_text}"); prompt_color = QColor(Qt.GlobalColor.darkCyan)
 
-        # Check if UI is busy
-        if self._is_busy:
-             logging.warning("UI 正忙，忽略命令行输入执行请求。")
-             self._show_information("操作繁忙", "当前正在执行其他操作，请稍后再试。")
-             self._append_output(f"❌ UI 正在忙碌，无法执行命令: {command_text}", QColor("red"))
-             self.command_input.clear() # Clear input after rejecting
-             return
+        if not self.git_handler.is_valid_repo():
+             try:
+                  command_parts = shlex.split(command_text)
+                  if command_parts and command_parts[0].lower() != 'git':
+                       self._show_warning("操作无效", "仓库无效，无法执行非 git 命令。");
+                       self._append_output(f"❌ 仓库无效，无法执行命令: {command_text}", QColor("red"))
+                       return
+                  if command_parts and command_parts[0].lower() == 'git' and (len(command_parts) < 2 or command_parts[1].lower() != 'init'):
+                       self._show_warning("操作无效", "仓库无效，只能执行 'git init' 命令。");
+                       self._append_output(f"❌ 仓库无效，只能执行 'git init': {command_text}", QColor("red"))
+                       return
+             except ValueError:
+                  pass
 
 
-        # Attempt to parse the command first to check if it's init/clone
-        command_parts_check = []
-        is_init_or_clone = False
-        try:
-            command_parts_check = shlex.split(command_text)
-            is_init_or_clone = command_parts_check and command_parts_check[0].lower() == 'git' and len(command_parts_check) > 1 and command_parts_check[1].lower() in ('init', 'clone')
-        except ValueError:
-             # If parsing fails, it's not a valid command anyway, let the execution handle the parsing error.
-             pass
-
-
-        # Check repo validity *before* execution, unless it's init/clone
-        if not is_init_or_clone and not self._check_repo_and_warn("仓库无效，无法执行命令。"):
-             self._append_output(f"❌ 仓库无效，无法执行命令: {command_text}", QColor("red"))
-             self.command_input.clear()
-             return
-
-
-        # Now parse the command definitively for execution
         try: command_parts = shlex.split(command_text)
         except ValueError as e:
              self._show_warning("输入错误", f"无法解析命令: {e}");
              self._append_output(f"❌ 解析命令失败: {command_text}\n{e}", QColor("red"))
-             self.command_input.clear()
              return
 
-        if not command_parts:
-             self.command_input.clear() # Clear input if it was just whitespace after strip
-             return
+        if not command_parts: return
 
         display_cmd = ' '.join(shlex.quote(part) for part in command_parts)
         self._append_output(f"\n$ {display_cmd}", prompt_color)
-        self.command_input.clear() # Clear input after sending for execution
+        self.command_input.clear()
 
-        # Special handling for init and clone
-        if is_init_or_clone and command_parts[1].lower() == 'clone':
-             # Need to determine target directory to set repo path later
-             # git clone <repo> [directory]
-             target_path = None
-             if len(command_parts) > 2:
-                 # The last argument is typically the target directory
-                 target_path_arg = shlex.split(display_cmd)[-1] # Use quoted display cmd to get original path string? No, use original parts.
-                 if len(command_parts) > 3 or (len(command_parts) == 3 and not command_parts[2].startswith('-')):
-                      target_path_arg = command_parts[-1] # Last part
-                 elif len(command_parts) == 3:
-                      # If only 3 parts (git clone url), git clones into repo name directory
-                      repo_url = command_parts[2]
-                      try:
-                          base = os.path.basename(repo_url.rstrip('/'))
-                          if base.endswith('.git'): base = base[:-4]
-                          target_path_arg = re.sub(r'[^\w\-.]+', '', base) or "cloned_repo"
-                      except Exception:
-                           target_path_arg = "cloned_repo"
-                 else:
-                     self._show_warning("克隆命令格式错误", "请提供仓库 URL。")
-                     self._set_ui_busy(False) # Ensure busy is off
-                     return # Stop execution
-
-                 # Resolve target path relative to current working directory if it's not absolute
-                 if not os.path.isabs(target_path_arg):
-                      # Git clone runs from the *parent* directory if a target directory name is provided
-                      # We need the *absolute* path of the directory that will be created
-                      # Use the current repo's parent dir as base, or current working dir if no repo
-                      current_base_dir = self.git_handler.get_repo_path()
-                      if current_base_dir and os.path.isdir(current_base_dir):
-                           clone_base_dir = os.path.dirname(current_base_dir) # Parent of current repo
-                           # If cloning into a subdirectory name, Git will create it relative to CWD
-                           # We are running clone with cwd=clone_base_dir and command_parts includes clone_dir_name
-                           # The final path will be os.path.join(clone_base_dir, clone_dir_name)
-                           if len(command_parts) > 3 or len(command_parts) == 3: # If target directory is specified
-                                target_path = os.path.join(clone_base_dir, command_parts[-1])
-                           else: # If no target directory specified, git uses repo name in cwd
-                                target_path = os.path.join(clone_base_dir, target_path_arg)
-
-                      else:
-                           # No current repo, use current working directory as base
-                           clone_base_dir = os.getcwd()
-                           if len(command_parts) > 3 or len(command_parts) == 3: # If target directory is specified
-                                target_path = os.path.join(clone_base_dir, command_parts[-1])
-                           else: # If no target directory specified, git uses repo name in cwd
-                                target_path = os.path.join(clone_base_dir, target_path_arg) # target_path_arg is the inferred directory name
-
-
-                 else: # Target path is already absolute
-                      target_path = target_path_arg
-                      clone_base_dir = os.path.dirname(target_path)
-                      # Reconstruct command to run from parent directory if target is specified
-                      # git clone <repo> <dir_name> becomes run from parent with command ["git", "clone", repo_url, os.path.basename(target_path)]
-                      if len(command_parts) > 2: # If target path was explicitly given
-                          command_parts = ["git", "clone", command_parts[2], os.path.basename(target_path)]
-                      # else: command_parts is already ["git", "clone", repo_url] and git uses repo name in cwd (which is clone_base_dir)
-
-
-                 if not target_path:
-                      self._show_warning("克隆错误", "无法确定克隆目标路径。")
-                      self._set_ui_busy(False)
-                      return
-
-                 # Check if directory exists and is not empty BEFORE starting clone
-                 if os.path.exists(target_path):
-                      if os.path.isdir(target_path) and os.listdir(target_path):
-                           self._show_warning("克隆失败", f"目标目录 '{os.path.basename(target_path)}' 已存在且不为空。请选择一个空目录或新目录名。")
-                           self._set_ui_busy(False)
-                           return
-                      elif not os.path.isdir(target_path):
-                           self._show_warning("克隆失败", f"目标路径 '{os.path.basename(target_path)}' 已存在且不是目录。请选择一个目录或新目录名。")
-                           self._set_ui_busy(False)
-                           return
-
-                 # Ensure parent directory exists before cloning
-                 try:
-                      if clone_base_dir and not os.path.exists(clone_base_dir):
-                           os.makedirs(clone_base_dir, exist_ok=True)
-                 except OSError as e:
-                      logging.error(f"无法创建克隆父目录 '{clone_base_dir}': {e}")
-                      self._show_warning("克隆错误", f"无法创建目录:\n{clone_base_dir}\n错误: {e}")
-                      self._set_ui_busy(False)
-                      return
-
-
-             else: # Only "git clone" or "git clone url" without specifying directory
-                 self._show_warning("克隆命令格式错误", "请提供仓库 URL。")
-                 self._set_ui_busy(False)
-                 return
-
-             # Temporarily clear repo path and update UI before cloning starts
-             self.git_handler.set_repo_path(None)
-             self._update_repo_status() # This will update UI to "Not Selected" and disable repo widgets
-
-             # Execute clone command from the determined parent directory
-             self._set_ui_busy(True)
-             self.git_handler.execute_command_async(
-                 command_parts,
-                 on_finished_slot=lambda rc, so, se, tp=target_path: self._handle_clone_finish(rc, so, se, tp),
-                 on_progress_slot=self._handle_clone_progress,
-                 cwd=clone_base_dir # Run the clone command in the parent directory
-             )
-
-        elif is_init_or_clone and command_parts[1].lower() == 'init':
-             # Determine target directory for init
-             init_dir = None
-             if len(command_parts) > 2: init_dir = command_parts[-1]
-             # Resolve to absolute path; if init_dir is None, it's the current working directory
-             init_abs_dir = os.path.abspath(init_dir) if init_dir else os.getcwd()
-
-             # Check if already a repo
-             git_dir_path = os.path.join(init_abs_dir, ".git")
-             if os.path.exists(git_dir_path) and os.path.isdir(git_dir_path):
-                 reply = QMessageBox.question(self, "仓库已存在", f"目录 '{os.path.basename(init_abs_dir)}' 似乎已经是一个 Git 仓库。\n是否仍要在此目录执行 'git init'? (不推荐)",
-                                             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
-                 if reply == QMessageBox.StandardButton.No:
-                      self._show_information("操作取消", "初始化操作已取消。")
-                      # Offer to open existing
-                      open_existing = QMessageBox.question(self, "打开现有仓库?", f"要打开这个现有的仓库吗?",
-                                                            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes)
-                      if open_existing == QMessageBox.StandardButton.Yes:
-                           self._set_repository_path(init_abs_dir)
-                      return
-                 else:
-                     logging.warning(f"在已有仓库目录 '{init_abs_dir}' 中执行 git init。")
-
-             # Set repo path first (temporarily, check_valid=False) so git commands run in this directory
-             # This will trigger UI update and disable repo widgets until init finishes
-             self.git_handler.set_repo_path(init_abs_dir, check_valid=False)
-             self._update_repo_status()
-
-             # Run the init command in the determined directory
-             # _run_command_list_sequentially will handle busy state
-             self._run_command_list_sequentially([command_text], refresh_on_success=False) # refresh_on_success=False means update_repo_status handles the post-init refresh
-
-        else:
-             # For all other commands, simply execute the command list
-             # _run_command_list_sequentially handles busy state and repo check
-             self._run_command_list_sequentially([command_text], refresh_on_success=True)
+        self._run_command_list_sequentially([command_text], refresh_on_success=True)
 
     def _load_shortcut_into_builder(self, item: QListWidgetItem = None):
-        """双击快捷键列表项时，将其命令序列加载到构建器"""
-        if not self.shortcut_list_widget: return
-        if not item: # If triggered by selectionModel().currentChanged, item is None
+        if not item:
             item = self.shortcut_list_widget.currentItem()
             if not item: return
 
@@ -2146,25 +1265,16 @@ class MainWindow(QMainWindow):
         if shortcut_data and isinstance(shortcut_data, dict) and shortcut_data.get('sequence'):
             name = shortcut_data.get('name', '未知')
             sequence_str = shortcut_data['sequence']
-            # Split sequence string into lines, filter empty lines
             self.current_command_sequence = [line.strip() for line in sequence_str.strip().splitlines() if line.strip()]
-            self._update_sequence_display() # Update the text editor
-            if self.status_bar and not self._is_busy:
-                self.status_bar.showMessage(f"快捷键 '{name}' 已加载到序列构建器", 3000)
+            self._update_sequence_display()
+            if self.status_bar: self.status_bar.showMessage(f"快捷键 '{name}' 已加载到序列构建器", 3000)
             logging.info(f"快捷键 '{name}' 已加载到构建器。")
         else:
              logging.warning("双击了列表项，但未获取到快捷键数据或序列。")
 
 
     def _execute_sequence_from_string(self, name: str, sequence_str: str):
-        """由 ShortcutManager 调用，执行快捷键对应的命令序列"""
-        logging.info(f"快捷键触发: Name='{name}', Sequence='{sequence_str[:100]}...'") # Log full sequence if short
-
-        # Check if UI is already busy - prevent execution if so
-        if self._is_busy:
-            logging.warning(f"UI 正忙，忽略快捷键 '{name}' 执行请求。")
-            self._show_information("操作繁忙", "当前正在执行其他操作，请稍后再试。")
-            return
+        if self.status_bar: self.status_bar.showMessage(f"正在执行快捷键: {name}", 3000)
 
         commands = [line.strip() for line in sequence_str.strip().splitlines() if line.strip()]
 
@@ -2173,204 +1283,132 @@ class MainWindow(QMainWindow):
              logging.warning(f"快捷键 '{name}' 导致命令列表为空。")
              return
 
-        # _run_command_list_sequentially handles busy state and repo check, including init/clone exceptions
+        # Check if the *first* command is 'git init' and allow it even if repo is invalid
+        is_init_shortcut = commands and commands[0].strip().lower() == "git init"
+
+        if not is_init_shortcut and not self.git_handler.is_valid_repo():
+             self._show_warning(f"无法执行快捷键 '{name}'", "仓库无效，无法执行除 'git init' 以外的命令。")
+             return
+
+
+        self.current_command_sequence = commands
+        self._update_sequence_display()
+
+        logging.info(f"准备执行快捷键 '{name}' 的命令列表: {commands}")
         self._run_command_list_sequentially(commands)
+
 
     @pyqtSlot()
     def _stage_all(self):
-        """暂存所有更改 (git add .)"""
         if not self._check_repo_and_warn(): return
-        has_changes = False
-        if self.status_tree_model:
-             # Check if any unstaged, untracked, or unmerged files exist
-             has_changes = (
-                 self.status_tree_model.unstage_root.rowCount() > 0 or
-                 self.status_tree_model.untracked_root.rowCount() > 0 or
-                 (hasattr(self.status_tree_model, 'unmerged_root') and self.status_tree_model.unmerged_root.rowCount() > 0)
-             )
-        if not has_changes:
+        if self.status_tree_model and self.status_tree_model.unstage_root.rowCount() == 0 and self.status_tree_model.untracked_root.rowCount() == 0 and (not hasattr(self.status_tree_model, 'unmerged_root') or self.status_tree_model.unmerged_root.rowCount() == 0):
             self._show_information("无操作", "没有未暂存或未跟踪的文件可供暂存。")
             return
         logging.info("请求暂存所有更改 (git add .)")
-        # Use _run_command_list_sequentially which handles busy state and refresh
         self._run_command_list_sequentially(["git add ."])
 
 
     @pyqtSlot()
     def _unstage_all(self):
-        """撤销所有已暂存文件 (git reset HEAD --)"""
         if not self._check_repo_and_warn(): return
-        has_staged = False
-        if self.status_tree_model:
-             # Check if the staged root has children
-             has_staged = self.status_tree_model.staged_root.rowCount() > 0
-        if not has_staged:
+        if self.status_tree_model and self.status_tree_model.staged_root.rowCount() == 0:
              self._show_information("无操作", "没有已暂存的文件可供撤销。")
              return
         logging.info("请求撤销全部暂存 (git reset HEAD --)");
-        # Use _run_command_list_sequentially which handles busy state and refresh
         self._run_command_list_sequentially(["git reset HEAD --"])
 
 
     def _stage_files(self, files: list[str]):
-        """暂存指定文件"""
         if not self._check_repo_and_warn() or not files: return
         logging.info(f"请求暂存特定文件: {files}")
-        # Build command parts, quoting each file path
-        command_parts = ["git", "add", "--"] + [shlex.quote(f) for f in files]
-        # Use _run_command_list_sequentially which handles busy state and refresh
-        self._run_command_list_sequentially([ ' '.join(command_parts) ]) # Join parts back to string for _add_command_to_sequence
+        commands = [f"git add -- {shlex.quote(f)}" for f in files]
+        self._run_command_list_sequentially(commands)
 
 
     def _unstage_files(self, files: list[str]):
-        """撤销暂存指定文件"""
         if not self._check_repo_and_warn() or not files: return
         logging.info(f"请求撤销暂存特定文件: {files}")
-        # Build command parts, quoting each file path
-        command_parts = ["git", "reset", "HEAD", "--"] + [shlex.quote(f) for f in files]
-        # Use _run_command_list_sequentially which handles busy state and refresh
-        self._run_command_list_sequentially([ ' '.join(command_parts) ]) # Join parts back to string
+        commands = [f"git reset HEAD -- {shlex.quote(f)}" for f in files]
+        self._run_command_list_sequentially(commands)
 
 
     @pyqtSlot(QPoint)
     def _show_status_context_menu(self, pos: QPoint):
-        """显示状态视图的右键菜单"""
-        if not self.status_tree_view or not self.status_tree_model: return
+        if not self._check_repo_and_warn() or not self.status_tree_view or not self.status_tree_model: return
 
-        is_repo_valid = self.git_handler.is_valid_repo()
-        # Get selected indices from the view's selection model
+        index = self.status_tree_view.indexAt(pos)
+        if not index.isValid(): return
+
         selected_indexes = self.status_tree_view.selectionModel().selectedIndexes()
+        if not selected_indexes: return
 
-        # Use the model method to get categorized file paths from selected indices
-        selected_files_data = self.status_tree_model.get_selected_files_data(list(selected_indexes))
+        unique_selected_rows = set(self.status_tree_model.index(idx.row(), STATUS_COL_STATUS, idx.parent()) for idx in selected_indexes if idx.isValid() and idx.parent().isValid())
 
+        if not unique_selected_rows: return
+
+        selected_files_data = self.status_tree_model.get_selected_files(list(unique_selected_rows))
         menu = QMenu()
         added_action = False
 
-        # Combine files from different categories that can be staged
-        files_to_stage = selected_files_data.get(STATUS_UNSTAGED, []) + \
-                         selected_files_data.get(STATUS_UNTRACKED, []) + \
-                         selected_files_data.get(STATUS_UNMERGED, []) # Merged conflicts often need re-adding
-
+        files_to_stage = selected_files_data.get(STATUS_UNSTAGED, []) + selected_files_data.get(STATUS_UNTRACKED, [])
         if files_to_stage:
             stage_action = QAction("暂存选中项 (+)", self)
-            stage_action.setToolTip(f"将 {len(files_to_stage)} 个选中的文件添加到暂存区 (git add)")
-            # Use lambda to capture the files list at the time the menu is created
-            stage_action.triggered.connect(lambda checked=False, files=list(files_to_stage): self._stage_files(files))
-            stage_action.setEnabled(is_repo_valid and not self._is_busy) # Disable if busy
+            stage_action.triggered.connect(lambda: self._stage_files(files_to_stage))
             menu.addAction(stage_action)
             added_action = True
 
         files_to_unstage = selected_files_data.get(STATUS_STAGED, [])
         if files_to_unstage:
-            if added_action: menu.addSeparator()
             unstage_action = QAction("撤销暂存选中项 (-)", self)
-            unstage_action.setToolTip(f"将 {len(files_to_unstage)} 个选中的文件移出暂存区 (git reset HEAD --)")
-            unstage_action.triggered.connect(lambda checked=False, files=list(files_to_unstage): self._unstage_files(files))
-            unstage_action.setEnabled(is_repo_valid and not self._is_busy)
+            unstage_action.triggered.connect(lambda: self._unstage_files(files_to_unstage))
             menu.addAction(unstage_action)
             added_action = True
 
         files_to_discard_unstaged = selected_files_data.get(STATUS_UNSTAGED, [])
         if files_to_discard_unstaged:
              if added_action: menu.addSeparator()
-             discard_action = QAction("丢弃工作区更改...", self)
-             discard_action.setToolTip(f"将 {len(files_to_discard_unstaged)} 个选中的文件恢复到暂存区状态 (git restore --)")
-             discard_action.triggered.connect(lambda checked=False, files=list(files_to_discard_unstaged): self._discard_changes_dialog(files))
-             discard_action.setEnabled(is_repo_valid and not self._is_busy)
+             discard_action = QAction("丢弃未暂存的更改...", self)
+             discard_action.triggered.connect(lambda: self._discard_changes_dialog(files_to_discard_unstaged))
              menu.addAction(discard_action)
              added_action = True
 
-        # Add actions for opening file/folder if only a single file is selected
-        all_selected_paths = set(p for paths in selected_files_data.values() for p in paths)
-
-        if added_action and len(all_selected_paths) == 1:
-             single_file_path = list(all_selected_paths)[0]
-             repo_base = self.git_handler.get_repo_path()
-             if repo_base:
-                 full_path = os.path.join(repo_base, single_file_path)
-                 # Check if it's actually a file on disk before offering to open
-                 if os.path.isfile(full_path):
-                      menu.addSeparator()
-                      open_action = QAction(f"打开文件 '{os.path.basename(single_file_path)}'", self)
-                      open_action.triggered.connect(lambda checked=False, path=full_path: QDesktopServices.openUrl(QUrl.fromLocalFile(path)))
-                      open_action.setEnabled(is_repo_valid and not self._is_busy)
-                      menu.addAction(open_action)
-
-                      open_folder_action = QAction(f"打开所在文件夹", self)
-                      open_folder_action.triggered.connect(lambda checked=False, path=os.path.dirname(full_path): QDesktopServices.openUrl(QUrl.fromLocalFile(path)))
-                      open_folder_action.setEnabled(is_repo_valid and not self._is_busy)
-                      menu.addAction(open_folder_action)
+        files_to_resolve_unmerged = selected_files_data.get(STATUS_UNMERGED, [])
+        if files_to_resolve_unmerged:
+            if added_action: menu.addSeparator()
+            resolve_action = QAction("标记为已解决 (仅限合并冲突)", self)
+            resolve_action.triggered.connect(lambda: self._resolve_files(files_to_resolve_unmerged))
+            menu.addAction(resolve_action)
+            added_action = True
 
 
-        # Check if the selected index is a root item (e.g., "Staged Changes")
-        # If so, offer actions for all files in that section
-        current_index = self.status_tree_view.indexAt(pos)
-        if current_index.isValid() and not current_index.parent().isValid():
-             # It's a root item
-             root_item = self.status_tree_model.itemFromIndex(current_index)
-             section_type = root_item.data(Qt.ItemDataRole.UserRole)
-             if section_type:
-                  all_files_in_section = self.status_tree_model.get_files_in_section(section_type)
-                  if all_files_in_section:
-                       if added_action: menu.addSeparator()
-                       if section_type in [STATUS_UNSTAGED, STATUS_UNTRACKED, STATUS_UNMERGED]:
-                            stage_all_in_section_action = QAction(f"暂存此类别所有文件 (+)", self)
-                            stage_all_in_section_action.setToolTip(f"暂存 {len(all_files_in_section)} 个文件")
-                            stage_all_in_section_action.triggered.connect(lambda checked=False, files=list(all_files_in_section): self._stage_files(files))
-                            stage_all_in_section_action.setEnabled(is_repo_valid and not self._is_busy)
-                            menu.addAction(stage_all_in_section_action)
-                            added_action = True
-                       if section_type == STATUS_STAGED:
-                            unstage_all_in_section_action = QAction(f"撤销暂存此类别所有文件 (-)", self)
-                            unstage_all_in_section_action.setToolTip(f"撤销暂存 {len(all_files_in_section)} 个文件")
-                            unstage_all_in_section_action.triggered.connect(lambda checked=False, files=list(all_files_in_section): self._unstage_files(files))
-                            unstage_all_in_section_action.setEnabled(is_repo_valid and not self._is_busy)
-                            menu.addAction(unstage_all_in_section_action)
-                            added_action = True
-                       if section_type == STATUS_UNSTAGED:
-                            discard_all_in_section_action = QAction(f"丢弃此类别所有更改...", self)
-                            discard_all_in_section_action.setToolTip(f"丢弃 {len(all_files_in_section)} 个文件的工作区更改")
-                            discard_all_in_section_action.triggered.connect(lambda checked=False, files=list(all_files_in_section): self._discard_changes_dialog(files))
-                            discard_all_in_section_action.setEnabled(is_repo_valid and not self._is_busy)
-                            menu.addAction(discard_all_in_section_action)
-                            added_action = True
-
-
-        if added_action: # Only show menu if actions were added
-             menu.exec(self.status_tree_view.viewport().mapToGlobal(pos))
-        else:
-             logging.debug("No applicable actions for selected status items.")
-
+        if added_action: menu.exec(self.status_tree_view.viewport().mapToGlobal(pos))
+        else: logging.debug("No applicable actions for selected status items.")
 
     def _discard_changes_dialog(self, files: list[str]):
-        """显示确认对话框并执行 git restore -- for selected files"""
         if not self._check_repo_and_warn() or not files: return
 
-        message = f"确定要丢弃以下 {len(files)} 个文件的本地（未暂存）更改吗？\n\n" + "\n".join([f"- {f}" for f in files[:10]] + (["..."] if len(files) > 10 else [])) + \
-                  f"\n\n文件将恢复为暂存区中的状态。\n此操作通常不可撤销！"
-        reply = QMessageBox.warning(self, "确认丢弃工作区更改", message,
+        message = f"确定要丢弃以下 {len(files)} 个文件的未暂存更改吗？\n\n" + "\n".join(files) + "\n\n此操作不可撤销！"
+        reply = QMessageBox.warning(self, "确认丢弃更改", message,
                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
                                     QMessageBox.StandardButton.Cancel)
 
         if reply == QMessageBox.StandardButton.Yes:
             logging.info(f"请求丢弃文件更改: {files}")
-            # Build command parts, quoting each file path
-            command_parts = ["git", "restore", "--"] + [shlex.quote(f) for f in files]
-            # Use _run_command_list_sequentially which handles busy state and refresh
-            self._run_command_list_sequentially([ ' '.join(command_parts) ])
+            commands = [f"git checkout -- {shlex.quote(f)}" for f in files]
+            self._run_command_list_sequentially(commands)
+
+    def _resolve_files(self, files: list[str]):
+        if not self._check_repo_and_warn() or not files: return
+        logging.info(f"请求标记为已解决: {files}")
+        commands = [f"git add -- {shlex.quote(f)}" for f in files]
+        self._run_command_list_sequentially(commands)
 
 
     @pyqtSlot(QItemSelection, QItemSelection)
     def _status_selection_changed(self, selected: QItemSelection, deselected: QItemSelection):
-        """处理状态视图选择变化，触发差异显示更新"""
-        if not self.status_tree_view or not self.status_tree_model or not self.diff_text_edit:
-             if self.diff_text_edit:
-                 self.diff_text_edit.clear(); self.diff_text_edit.setPlaceholderText("")
-             return
-
-        if not self._check_repo_and_warn("仓库无效，无法显示差异。"):
-             if self.diff_text_edit: self.diff_text_edit.clear(); self.diff_text_edit.setPlaceholderText("仓库无效")
+        if not self.status_tree_view or not self.status_tree_model or not self.diff_text_edit or not self._check_repo_and_warn("仓库无效，无法显示差异。"):
+             self.diff_text_edit.clear();
+             self.diff_text_edit.setPlaceholderText("选中已更改的文件以查看差异...")
              return
 
         self.diff_text_edit.clear()
@@ -2380,431 +1418,183 @@ class MainWindow(QMainWindow):
             self.diff_text_edit.setPlaceholderText("选中已更改的文件以查看差异...");
             return
 
-        # Use the model method to get categorized file paths from selected indices
-        # This method correctly filters for file items and gets unique paths
-        selected_files_data = self.status_tree_model.get_selected_files_data(list(selected_indexes))
+        unique_selected_rows = set(self.status_tree_model.index(idx.row(), STATUS_COL_STATUS, idx.parent()) for idx in selected_indexes if idx.isValid() and idx.parent().isValid())
 
-        # Flatten the dictionary to get all unique selected files regardless of category
-        all_unique_selected_files = set(p for paths in selected_files_data.values() for p in paths)
-
-
-        if len(all_unique_selected_files) != 1:
-            self.diff_text_edit.setPlaceholderText(f"请选择单个文件以查看差异 ({len(all_unique_selected_files)} 个文件被选中)");
+        if len(unique_selected_rows) != 1:
+            self.diff_text_edit.setPlaceholderText("请选择单个文件以查看差异...");
             return
 
-        file_path = list(all_unique_selected_files)[0]
-        # Determine the section type for this single file. It could potentially be in multiple sections (e.g., staged and unstaged).
-        # We prioritize unstaged > staged > untracked > unmerged for which diff to show by default if file is in multiple.
-        section_type_priority = [STATUS_UNSTAGED, STATUS_STAGED, STATUS_UNTRACKED, STATUS_UNMERGED]
-        section_type_for_diff = None
-        for section in section_type_priority:
-             if file_path in selected_files_data.get(section, []):
-                  section_type_for_diff = section
-                  break
+        first_row_index = list(unique_selected_rows)[0]
+        path_item_index = self.status_tree_model.index(first_row_index.row(), STATUS_COL_PATH, first_row_index.parent())
+        path_item = self.status_tree_model.itemFromIndex(path_item_index)
 
-        if not file_path or not section_type_for_diff:
-            logging.warning(f"Could not retrieve file path ({file_path}) or section type ({section_type_for_diff}) for single selection.");
-            self.diff_text_edit.setPlaceholderText("无法获取文件路径或状态...");
+        if not path_item:
+            logging.warning("Could not find path item for selected status row.");
+            self.diff_text_edit.setPlaceholderText("无法获取文件路径...");
             return
 
-        base_name = os.path.basename(file_path)
-        repo_base = self.git_handler.get_repo_path()
+        file_path = path_item.data(Qt.ItemDataRole.UserRole + 1);
+        parent_item = path_item.parent()
+        if not parent_item:
+             logging.warning("File path item has no parent.");
+             self.diff_text_edit.setPlaceholderText("无法确定文件状态...");
+             return
 
-        if section_type_for_diff == STATUS_UNTRACKED:
-             self.diff_text_edit.setPlaceholderText(f"正在加载未跟踪文件 '{base_name}' 的内容...");
-             QApplication.processEvents()
-             if repo_base:
-                 full_path = os.path.join(repo_base, file_path)
-                 try:
-                      with open(full_path, 'r', encoding='utf-8', errors='ignore') as f: content = f.read()
-                      # Display content directly for untracked files
-                      self._display_formatted_diff(self.diff_text_edit, f"--- 未跟踪文件: {file_path} ---\n\n{content}")
-                 except Exception as e:
-                      logging.error(f"无法读取未跟踪文件 {full_path}: {e}")
-                      self.diff_text_edit.setPlainText(f"无法读取未跟踪文件:\n{e}")
-                 finally: self.diff_text_edit.setPlaceholderText("")
-             else:
-                  self.diff_text_edit.setPlainText("错误：无法确定仓库路径以读取未跟踪文件。")
-                  self.diff_text_edit.setPlaceholderText("")
+        section_type = parent_item.data(Qt.ItemDataRole.UserRole);
 
+        if not file_path:
+            logging.warning("File path data missing.");
+            self.diff_text_edit.setPlaceholderText("无法获取文件路径...");
+            return
 
+        if section_type == STATUS_UNTRACKED:
+            self.diff_text_edit.setText(f"'{file_path}' 是未跟踪的文件。\n\n无法显示与仓库的差异。")
+            self.diff_text_edit.setPlaceholderText("")
         elif self.git_handler:
-            # For tracked files, request git diff
-            staged_diff = (section_type_for_diff == STATUS_STAGED)
-            diff_type_name = "暂存区 (Staged)" if staged_diff else "工作区 (Unstaged)" if section_type_for_diff == STATUS_UNSTAGED else "未合并 (Unmerged)"
-            self.diff_text_edit.setPlaceholderText(f"正在加载 '{base_name}' 的 {diff_type_name} 差异...");
+            staged_diff = (section_type == STATUS_STAGED)
+            self.diff_text_edit.setPlaceholderText(f"正在加载 '{os.path.basename(file_path)}' 的差异...");
             QApplication.processEvents()
-
-            diff_command = ["git", "diff", "--no-ext-diff"]
-            if staged_diff:
-                diff_command.append("--cached") # Show diff between HEAD and index (staged)
-            elif section_type_for_diff == STATUS_UNSTAGED:
-                # Show diff between index and worktree (unstaged)
-                # git diff -- file_path (default)
-                pass
-            elif section_type_for_diff == STATUS_UNMERGED:
-                 # Show diff for unmerged files, which typically need `git diff path` or `git diff --theirs path`, `git diff --ours path`, `git diff --base path`
-                 # For simplicity, maybe just run `git diff path` which shows conflicts?
-                 # Let's stick to default diff for now unless specific diff conflict views are implemented
-                 pass
-
-            diff_command.extend(["--", file_path]) # Add file path separated by --
-
-            self.git_handler.execute_command_async(
-                diff_command,
-                lambda rc, so, se, fp=file_path, sd=staged_diff: self._on_diff_received(rc, so, se, fp, sd)
-            )
+            diff_command = ["git", "diff"]
+            if staged_diff: diff_command.append("--cached")
+            diff_command.extend(["--", shlex.quote(file_path)])
+            self.git_handler.execute_command_async(diff_command, self._on_diff_received)
         else:
-            self.diff_text_edit.setPlainText("❌ 内部错误：Git 处理程序不可用。")
+            self.diff_text_edit.setText("❌ 内部错误：Git 处理程序不可用。")
             self.diff_text_edit.setPlaceholderText("")
 
 
-    @pyqtSlot(int, str, str, str, bool)
-    def _on_diff_received(self, return_code: int, stdout: str, stderr: str, file_path: str, staged_diff: bool):
-        """处理 Git diff 命令结果并显示"""
+    @pyqtSlot(int, str, str)
+    def _on_diff_received(self, return_code: int, stdout: str, stderr: str):
         if not self.diff_text_edit: return
         self.diff_text_edit.setPlaceholderText("");
 
         if return_code == 0:
             if stdout.strip():
-                self._display_formatted_diff(self.diff_text_edit, stdout)
+                self._display_formatted_diff(stdout)
             else:
-                # Determine comparison target based on if it was a staged diff or worktree diff
-                compare_target = "HEAD" if staged_diff else "暂存区"
-                self.diff_text_edit.setPlainText(f"文件 '{os.path.basename(file_path)}' 与 {compare_target} 没有差异。")
+                self.diff_text_edit.setText("文件无差异。")
         else:
-            # Check if the error is expected for unmerged files (like "file mode changed")
-            if return_code != 0 and stderr and ("file mode changed" in stderr or "unmerged" in stderr.lower()):
-                 logging.warning(f"获取差异失败，可能是文件模式变化或未合并文件: {stderr.strip()}")
-                 self._display_formatted_diff(self.diff_text_edit, stderr.strip()) # Display stderr as diff might still contain useful info
-            else:
-                 error_message = f"❌ 获取 '{os.path.basename(file_path)}' 的差异失败:\n{stderr.strip()}"
-                 self.diff_text_edit.setPlainText(error_message)
-                 logging.error(f"Git diff 失败 (RC={return_code}) for {file_path}: {stderr.strip()}")
+            error_message = f"❌ 获取差异失败:\n{stderr}"
+            self.diff_text_edit.setText(error_message)
+            logging.error(f"Git diff failed: RC={return_code}, Err:{stderr}")
 
-    def _display_formatted_diff(self, target_edit: QTextEdit, diff_text: str):
-        """在指定的 QTextEdit 中显示带颜色格式的差异文本"""
-        if not target_edit: return
+    def _display_formatted_diff(self, diff_text: str):
+        if not self.diff_text_edit: return
 
-        target_edit.clear()
-        cursor = target_edit.textCursor()
+        self.diff_text_edit.clear()
+        cursor = self.diff_text_edit.textCursor()
 
-        default_format = target_edit.currentCharFormat()
-        # Set a monospace font for the diff view
-        mono_font = QFont("Courier New", default_format.font().pointSize())
-        default_format.setFont(mono_font)
-
-        # Define formats for different diff line types
-        add_format = QTextCharFormat(default_format); add_format.setForeground(QColor("darkGreen")); add_format.setFontWeight(QFont.Weight.Bold)
+        default_format = self.diff_text_edit.currentCharFormat()
+        add_format = QTextCharFormat(default_format); add_format.setForeground(QColor("darkGreen"))
         del_format = QTextCharFormat(default_format); del_format.setForeground(QColor("red"))
-        header_format = QTextCharFormat(default_format); header_format.setForeground(QColor("darkBlue"))
-        hunk_header_format = QTextCharFormat(default_format); hunk_header_format.setForeground(QColor("darkCyan"))
-        conflict_format = QTextCharFormat(default_format); conflict_format.setForeground(QColor("orange")); conflict_format.setBackground(QColor("#404000")); conflict_format.setFontWeight(QFont.Weight.Bold)
+        header_format = QTextCharFormat(default_format); header_format.setForeground(QColor("gray"))
 
-        target_edit.setCurrentCharFormat(default_format)
+        self.diff_text_edit.setFontFamily("Courier New")
 
         lines = diff_text.splitlines()
         for line in lines:
             fmt_to_apply = default_format
-            text_to_insert = line
 
-            # Apply formatting based on line prefix
-            if line.startswith('diff ') or line.startswith('index ') or line.startswith('--- ') or line.startswith('+++ '):
+            if line.startswith('diff ') or line.startswith('index ') or line.startswith('---') or line.startswith('+++') or line.startswith('@@ '):
                 fmt_to_apply = header_format
-            elif line.startswith('@@ '):
-                fmt_to_apply = hunk_header_format
             elif line.startswith('+'):
                 fmt_to_apply = add_format
             elif line.startswith('-'):
                 fmt_to_apply = del_format
-            # Simple check for conflict markers
-            elif line.startswith(('<<<<<<< ', '=======', '>>>>>>> ')):
-                 fmt_to_apply = conflict_format
+            elif line.startswith('<<<<<<< ') or line.startswith('=======') or line.startswith('>>>>>>> '):
+                 header_format_conflict = QTextCharFormat(header_format); header_format_conflict.setForeground(QColor("orange"))
+                 fmt_to_apply = header_format_conflict
 
-            cursor.insertText(text_to_insert, fmt_to_apply)
-            cursor.insertText("\n", default_format) # Add newline after each line
 
-        # Reset cursor position to the start after writing
+            cursor.insertText(line, fmt_to_apply)
+            cursor.insertText("\n", default_format)
+
         cursor.movePosition(QTextCursor.MoveOperation.Start)
-        target_edit.setTextCursor(cursor)
-        target_edit.ensureCursorVisible()
+        self.diff_text_edit.setTextCursor(cursor)
+        self.diff_text_edit.ensureCursorVisible()
 
 
     @pyqtSlot(QListWidgetItem)
     def _branch_double_clicked(self, item: QListWidgetItem):
-        """双击分支列表项，尝试切换到该分支或基于远程分支创建本地分支"""
         if not item or not self._check_repo_and_warn(): return
         branch_name = item.text().strip();
-        if not branch_name: return
-
-        # Handle remote branches differently
         if branch_name.startswith("remotes/"):
-             remote_parts = branch_name.split('/', 2);
-             if len(remote_parts) == 3:
-                 remote_branch_name = remote_parts[2]; # e.g., 'main' from 'remotes/origin/main'
-                 # Suggest creating and checking out a local branch based on the remote one
-                 self._create_and_checkout_branch_from_dialog(remote_branch_name, branch_name)
-             else:
-                  self._show_warning("操作无效", f"无法解析远程分支名称: '{branch_name}'");
+             self._show_information("操作无效", f"不能直接切换到远程跟踪分支 '{branch_name}'。请右键选择 '基于此创建并切换本地分支...'。");
              return
-
-        # Handle Detached HEAD state
-        if branch_name.startswith("(Detached HEAD"):
-             self._show_information("提示", "当前处于 'Detached HEAD' 状态。\n如需切换到分支，请双击或右键菜单选择一个分支名称。");
-             return
-
-        # Handle current branch (double clicking current branch does nothing)
         if item.font().bold():
-             logging.info(f"已在分支 '{branch_name}'.");
-             if self.status_bar and not self._is_busy: self.status_bar.showMessage(f"已在分支 '{branch_name}'", 2000);
+             logging.info(f"Already on branch '{branch_name}'.");
+             if self.status_bar: self.status_bar.showMessage(f"已在分支 '{branch_name}'", 2000);
              return
-
-        # For local branches, confirm checkout
-        reply = QMessageBox.question(self, "切换分支", f"确定要切换到本地分支 '{branch_name}' 吗？\n\n未提交的更改将被携带（如果可能）。", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Yes)
+        reply = QMessageBox.question(self, "切换分支", f"确定要切换到本地分支 '{branch_name}' 吗？\n\n未提交的更改将会被携带。", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Yes)
         if reply == QMessageBox.StandardButton.Yes:
              logging.info(f"请求切换到分支: {branch_name}")
-             # Use _run_command_list_sequentially which handles busy state and refresh
              self._run_command_list_sequentially([f"git checkout {shlex.quote(branch_name)}"])
 
 
     @pyqtSlot()
     def _create_branch_dialog(self):
-        """显示创建新本地分支的对话框"""
         if not self._check_repo_and_warn(): return
-        start_point = "HEAD" # Default start point is HEAD
-
-        branch_name, ok = QInputDialog.getText(self, "创建新分支", f"输入新分支的名称 (基于 {start_point}):", QLineEdit.EchoMode.Normal)
-        if ok and branch_name: # OK is True even if name is empty
+        branch_name, ok = QInputDialog.getText(self, "创建新分支", "输入新分支的名称:", QLineEdit.EchoMode.Normal)
+        if ok:
             clean_name = branch_name.strip();
-            # Basic validation for branch names
-            if not clean_name or not re.match(r'^(?!\.|.*\.\.|.*@\{)[^\s~^:?*\[\\]+$', clean_name) or clean_name.endswith('.lock') or clean_name.startswith('.') or '..' in clean_name or '//' in clean_name:
-                 self._show_warning("创建失败", f"分支名称 '{clean_name}' 无效。\n\n请遵循 Git 分支命名规则。")
+            if not clean_name or re.search(r'[\s\~\^\:\?\*\[\\@\{]', clean_name):
+                 self._show_warning("创建失败", "分支名称无效。\n\n分支名称不能包含空格或特殊字符如 ~^:?*[\\@{。")
                  return
-            logging.info(f"请求创建新分支: {clean_name} (基于 {start_point})");
-            # Use _run_command_list_sequentially which handles busy state and refresh
-            self._run_command_list_sequentially([f"git branch {shlex.quote(clean_name)} {shlex.quote(start_point)}"])
-        elif ok and not branch_name: # User clicked OK but input was empty
+            logging.info(f"请求创建新分支: {clean_name}");
+            self._run_command_list_sequentially([f"git branch {shlex.quote(clean_name)}"])
+        elif ok:
             self._show_information("创建失败", "分支名称不能为空。")
 
 
     @pyqtSlot(QPoint)
     def _show_branch_context_menu(self, pos: QPoint):
-        """显示分支列表的右键菜单"""
-        if not self.branch_list_widget: return
-
+        if not self._check_repo_and_warn() or not self.branch_list_widget: return
         item = self.branch_list_widget.itemAt(pos);
         if not item: return
-
-        is_repo_valid = self.git_handler.is_valid_repo() and not self._is_busy # Disable menu actions if busy
-
         menu = QMenu();
         branch_name = item.text().strip();
         is_remote = branch_name.startswith("remotes/");
         is_current = item.font().bold();
-        is_detached = branch_name.startswith("(Detached HEAD");
         added_action = False
 
-        if not is_detached: # Actions not applicable to Detached HEAD
-            if not is_current and not is_remote: # Actions for other local branches
-                checkout_action = QAction(f"切换到 '{branch_name}'", self)
-                checkout_action.triggered.connect(lambda checked=False, b=branch_name: self._run_command_list_sequentially([f"git checkout {shlex.quote(b)}"]))
-                checkout_action.setEnabled(is_repo_valid)
-                menu.addAction(checkout_action)
-                added_action = True
+        if not is_current and not is_remote:
+            checkout_action = QAction(f"切换到 '{branch_name}'", self)
+            checkout_action.triggered.connect(lambda checked=False, b=branch_name: self._run_command_list_sequentially([f"git checkout {shlex.quote(b)}"]))
+            menu.addAction(checkout_action)
+            added_action = True
 
-                merge_action = QAction(f"合并 '{branch_name}' 到当前分支...", self)
-                merge_action.triggered.connect(lambda checked=False, b=branch_name: self._merge_branch_dialog(b))
-                merge_action.setEnabled(is_repo_valid)
-                menu.addAction(merge_action)
-                added_action = True
+            delete_action = QAction(f"删除本地分支 '{branch_name}'...", self)
+            delete_action.triggered.connect(lambda checked=False, b=branch_name: self._delete_branch_dialog(b))
+            menu.addAction(delete_action)
+            added_action = True
 
-                rebase_current_action = QAction(f"将当前分支变基到 '{branch_name}'...", self)
-                rebase_current_action.triggered.connect(lambda checked=False, b=branch_name: self._rebase_onto_dialog(b))
-                rebase_current_action.setEnabled(is_repo_valid)
-                menu.addAction(rebase_current_action)
-                added_action = True
-
-                # git branch -m <old> <new> or git branch -M <old> <new>
-                rename_action = QAction(f"重命名本地分支 '{branch_name}'...", self)
-                rename_action.triggered.connect(lambda checked=False, b=branch_name: self._rename_local_branch_dialog(b))
-                rename_action.setEnabled(is_repo_valid)
-                menu.addAction(rename_action)
-                added_action = True
-
-                # git branch -d <branch>
-                delete_action = QAction(f"删除本地分支 '{branch_name}'...", self)
-                delete_action.triggered.connect(lambda checked=False, b=branch_name: self._delete_branch_dialog(b, force=False))
-                delete_action.setEnabled(is_repo_valid)
-                menu.addAction(delete_action)
-                added_action = True
-
-                # git branch -D <branch>
-                force_delete_action = QAction(f"强制删除本地分支 '{branch_name}'...", self)
-                force_delete_action.triggered.connect(lambda checked=False, b=branch_name: self._delete_branch_dialog(b, force=True))
-                force_delete_action.setEnabled(is_repo_valid)
-                menu.addAction(force_delete_action)
-                added_action = True
-
-            elif is_remote: # Actions for remote tracking branches
-                 remote_parts = branch_name.split('/', 2);
-                 if len(remote_parts) == 3:
-                     remote_name = remote_parts[1];
-                     remote_branch_name = remote_parts[2];
-
-                     # Create and checkout local branch from remote
-                     checkout_remote_action = QAction(f"基于此创建并切换本地分支...", self)
-                     # Pass remote branch name as suggest name and full remote ref as start point
-                     checkout_remote_action.triggered.connect(lambda checked=False, rbn=remote_branch_name, sp=branch_name: self._create_and_checkout_branch_from_dialog(rbn, sp))
-                     checkout_remote_action.setEnabled(is_repo_valid)
-                     menu.addAction(checkout_remote_action)
-                     added_action = True
-
-                     # Create local branch from remote (without checkout)
-                     create_local_action = QAction(f"基于此创建本地分支...", self)
-                     create_local_action.triggered.connect(lambda checked=False, rbn=remote_branch_name, sp=branch_name: self._create_branch_from_dialog(rbn, sp))
-                     create_local_action.setEnabled(is_repo_valid)
-                     menu.addAction(create_local_action)
-                     added_action = True
-
-                     # Merge remote branch into current
-                     merge_remote_action = QAction(f"合并 '{branch_name}' 到当前分支...", self)
-                     merge_remote_action.triggered.connect(lambda checked=False, b=branch_name: self._merge_branch_dialog(b))
-                     merge_remote_action.setEnabled(is_repo_valid)
-                     menu.addAction(merge_remote_action)
-                     added_action = True
-
-                     # git push <remote> --delete <branch>
-                     delete_remote_action = QAction(f"删除远程分支 '{remote_name}/{remote_branch_name}'...", self)
-                     delete_remote_action.triggered.connect(lambda checked=False, rn=remote_name, rbn=remote_branch_name: self._delete_remote_branch_dialog(rn, rbn))
-                     delete_remote_action.setEnabled(is_repo_valid)
-                     menu.addAction(delete_remote_action)
-                     added_action = True
-
-            if is_current and not is_remote: # Actions for the current local branch
-                 # git push [<remote> [<branch>]]
-                 push_action = QAction(f"推送当前分支 '{branch_name}'...", self)
-                 push_action.triggered.connect(lambda checked=False, b=branch_name: self._push_branch_dialog(b))
-                 push_action.setEnabled(is_repo_valid)
-                 menu.addAction(push_action)
+        if is_remote:
+             remote_parts = branch_name.split('/', 2);
+             if len(remote_parts) == 3:
+                 remote_name = remote_parts[1];
+                 remote_branch_name = remote_parts[2];
+                 checkout_remote_action = QAction(f"基于 '{branch_name}' 创建并切换到本地分支...", self)
+                 checkout_remote_action.triggered.connect(lambda checked=False, rbn=remote_branch_name: self._create_and_checkout_branch_from_dialog(rbn, branch_name))
+                 menu.addAction(checkout_remote_action)
                  added_action = True
 
-                 # git branch -m <old> <new> or git branch -M <old> <new>
-                 rename_action = QAction(f"重命名当前分支 '{branch_name}'...", self)
-                 rename_action.triggered.connect(lambda checked=False, b=branch_name: self._rename_local_branch_dialog(b))
-                 rename_action.setEnabled(is_repo_valid)
-                 menu.addAction(rename_action)
+                 delete_remote_action = QAction(f"删除远程分支 '{remote_name}/{remote_branch_name}'...", self)
+                 delete_remote_action.triggered.connect(lambda checked=False, rn=remote_name, rbn=remote_branch_name: self._delete_remote_branch_dialog(rn, rbn))
+                 menu.addAction(delete_remote_action)
                  added_action = True
-
-            if added_action:
-                 menu.addSeparator()
-                 copy_action = QAction(f"复制名称 '{branch_name}'", self)
-                 copy_action.triggered.connect(lambda checked=False, b=branch_name: QApplication.clipboard().setText(b))
-                 menu.addAction(copy_action)
-                 # Added copy action should not mark as added_action for separator logic
-                 # added_action = True
-
 
         if added_action: menu.exec(self.branch_list_widget.mapToGlobal(pos))
         else: logging.debug(f"No applicable context actions for branch item: {branch_name}")
 
 
-    def _merge_branch_dialog(self, branch_to_merge: str):
-        """显示确认对话框并执行 git merge"""
-        if not self._check_repo_and_warn(): return
-        reply = QMessageBox.question(self, "确认合并", f"确定要将分支 '{branch_to_merge}' 合并到当前分支吗?",
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
-                                     QMessageBox.StandardButton.Yes)
-        if reply == QMessageBox.StandardButton.Yes:
-            logging.info(f"请求合并分支: {branch_to_merge}")
-            # Use _run_command_list_sequentially which handles busy state and refresh
-            self._run_command_list_sequentially([f"git merge {shlex.quote(branch_to_merge)}"])
-
-    def _rebase_onto_dialog(self, base_branch: str):
-        """显示确认对话框并执行 git rebase"""
-        if not self._check_repo_and_warn(): return
-        reply = QMessageBox.question(self, "确认变基", f"确定要将当前分支变基到 '{base_branch}' 吗?\n\n变基会重写历史记录!",
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
-                                     QMessageBox.StandardButton.Cancel)
-        if reply == QMessageBox.StandardButton.Yes:
-            logging.info(f"请求将当前分支变基到: {base_branch}")
-            # Use _run_command_list_sequentially which handles busy state and refresh
-            self._run_command_list_sequentially([f"git rebase {shlex.quote(base_branch)}"])
-
-    def _rename_local_branch_dialog(self, old_name: str):
-        """显示对话框获取新名称并执行 git branch -m"""
-        if not self._check_repo_and_warn(): return
-        if old_name.startswith("remotes/"):
-             self._show_warning("操作无效", "无法重命名远程跟踪分支。")
-             return
-
-        new_name, ok = QInputDialog.getText(self, "重命名本地分支", f"输入 '{old_name}' 的新名称:", QLineEdit.EchoMode.Normal, old_name)
-        if ok and new_name: # OK is True even if empty
-             clean_new_name = new_name.strip();
-             # Basic validation for branch names
-             if not clean_new_name or not re.match(r'^(?!\.|.*\.\.|.*@\{)[^\s~^:?*\[\\]+$', clean_new_name) or clean_new_name.endswith('.lock') or clean_new_name.startswith('.') or '..' in clean_new_name or '//' in clean_new_name:
-                 self._show_warning("重命名失败", f"新分支名称 '{clean_new_name}' 无效。")
-                 return
-             if clean_new_name == old_name:
-                 self._show_information("提示", "新旧名称相同，无需重命名。")
-                 return
-
-             logging.info(f"请求重命名本地分支: {old_name} -> {clean_new_name}");
-             # Use git branch -m <oldname> <newname>
-             # Use _run_command_list_sequentially which handles busy state and refresh
-             self._run_command_list_sequentially([f"git branch -m {shlex.quote(old_name)} {shlex.quote(clean_new_name)}"])
-        elif ok and not new_name: # User clicked OK but input empty
-            self._show_warning("重命名失败", "新分支名称不能为空。")
-
-    def _push_branch_dialog(self, branch_name: str):
-        """显示对话框选择远程和选项并执行 git push"""
-        if not self._check_repo_and_warn(): return
-        if branch_name.startswith("remotes/") or branch_name.startswith("("):
-             self._show_warning("操作无效", "不能直接推送远程跟踪分支或处于 Detached HEAD 状态。请切换到本地分支。")
-             return
-
-        # Get list of remotes
-        remotes_result = self.git_handler.execute_command_sync(["git", "remote"])
-        remotes = remotes_result.stdout.strip().splitlines() if remotes_result and remotes_result.returncode == 0 else []
-        if not remotes: # Provide a default if no remotes found
-            remotes = ["origin"]
-            logging.warning("未找到远程仓库，建议使用 'origin'。")
-
-        remote_name, ok_remote = QInputDialog.getItem(self, "选择远程仓库", "推送到哪个远程仓库?", remotes, 0, False)
-        if not ok_remote or not remote_name: return # Cancelled or empty
-
-        # Ask about setting upstream
-        set_upstream = False
-        upstream_reply = QMessageBox.question(self, "设置上游?", f"是否要设置 '{remote_name}/{branch_name}' 为此本地分支的上游跟踪分支 (-u)?",
-                                               QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes)
-        set_upstream = (upstream_reply == QMessageBox.StandardButton.Yes)
-
-        command = ["git", "push"]
-        if set_upstream: command.append("-u")
-        command.append(shlex.quote(remote_name))
-        command.append(shlex.quote(branch_name)) # Push this specific branch
-
-        logging.info(f"请求推送分支: {' '.join(command)}")
-        # Use _run_command_list_sequentially which handles busy state and refresh
-        self._run_command_list_sequentially([' '.join(command)])
-
-
     def _delete_branch_dialog(self, branch_name: str, force: bool = False):
-        """显示确认对话框并执行 git branch -d/-D"""
         if not self._check_repo_and_warn() or not branch_name or branch_name.startswith("remotes/"):
-             logging.error(f"无效的本地分支名称用于删除: {branch_name}");
-             self._show_warning("操作无效", "请选择一个本地分支进行删除。")
+             logging.error(f"Invalid local branch name for deletion: {branch_name}");
              return
-
-        # Check if trying to delete the current branch (case-insensitive check for safety)
-        current_branch_display = self.current_branch_name_display.strip().lstrip('* ') if self.current_branch_name_display else None
-        if current_branch_display and branch_name.strip().lower() == current_branch_display.lower():
-             self._show_warning("操作无效", f"不能删除当前所在的分支 '{branch_name}'。\n请先切换到其他分支。")
-             return
-
         delete_flag = "-D" if force else "-d"
         action_text = "强制删除" if force else "删除"
         warning_message = f"确定要{action_text}本地分支 '{branch_name}' 吗？"
-        if not force: warning_message += "\n\n此操作仅在分支已合并时安全。\n如果分支未合并且需要删除，请使用强制删除 (-D)。"
+        if not force: warning_message += "\n\n此操作仅在分支已合并时安全。如果分支未合并，请使用强制删除 (-D) 或先合并。"
         warning_message += "\n\n此操作通常不可撤销！"
 
         reply = QMessageBox.warning(self, f"确认{action_text}本地分支", warning_message,
@@ -2812,252 +1602,125 @@ class MainWindow(QMainWindow):
                                     QMessageBox.StandardButton.Cancel)
 
         if reply == QMessageBox.StandardButton.Yes:
-             logging.info(f"请求{action_text}本地分支: {branch_name} (使用 {delete_flag})")
-             # Use _run_command_list_sequentially which handles busy state and refresh
+             logging.info(f"请求{action_text}本地分支: {branch_name} (using {delete_flag})")
              self._run_command_list_sequentially([f"git branch {delete_flag} {shlex.quote(branch_name)}"])
+        elif reply == QMessageBox.StandardButton.Cancel and not force:
+             force_delete_reply = QMessageBox.question(self, "强制删除?", f"由于分支可能未合并，普通删除失败。\n\n要尝试强制删除本地分支 '{branch_name}' 吗？\n\n此操作可能导致工作丢失。",
+                                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                                         QMessageBox.StandardButton.No)
+             if force_delete_reply == QMessageBox.StandardButton.Yes:
+                  self._delete_branch_dialog(branch_name, force=True)
 
 
     def _delete_remote_branch_dialog(self, remote_name: str, branch_name: str):
-        """显示确认对话框并执行 git push <remote> --delete <branch>"""
         if not self._check_repo_and_warn() or not remote_name or not branch_name:
-             logging.error(f"无效的远程/分支名称用于删除: {remote_name}/{branch_name}");
-             self._show_warning("操作无效", "无法确定远程仓库或分支名称。")
+             logging.error(f"Invalid remote/branch name for deletion: {remote_name}/{branch_name}");
              return
-        confirmation_message = f"确定要从远程仓库 '{remote_name}' 删除分支 '{branch_name}' 吗？\n\n将执行: git push {remote_name} --delete {branch_name}\n\n此操作通常不可撤销，并会影响其他协作者！"
+        confirmation_message = f"确定要从远程仓库 '{remote_name}' 删除分支 '{branch_name}' 吗？\n\n将执行: git push {remote_name} --delete {branch_name}\n\n此操作通常不可撤销！"
         reply = QMessageBox.warning(self, "确认删除远程分支", confirmation_message, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Cancel)
         if reply == QMessageBox.StandardButton.Yes:
             logging.info(f"请求删除远程分支: {remote_name}/{branch_name}")
-            # Use _run_command_list_sequentially which handles busy state and refresh
             self._run_command_list_sequentially([f"git push {shlex.quote(remote_name)} --delete {shlex.quote(branch_name)}"])
-
-    def _create_branch_from_dialog(self, suggest_name: str, start_point: str):
-         """显示对话框获取新名称并执行 git branch <newname> <startpoint>"""
-         if not self._check_repo_and_warn(): return
-         branch_name, ok = QInputDialog.getText(self, "创建本地分支", f"输入新本地分支的名称 (基于 '{start_point}'):", QLineEdit.EchoMode.Normal, suggest_name)
-         if ok and branch_name:
-            clean_name = branch_name.strip();
-            # Basic validation for branch names
-            if not clean_name or not re.match(r'^(?!\.|.*\.\.|.*@\{)[^\s~^:?*\[\\]+$', clean_name) or clean_name.endswith('.lock') or clean_name.startswith('.') or '..' in clean_name or '//' in clean_name:
-                 self._show_warning("操作失败", f"分支名称 '{clean_name}' 无效。")
-                 return
-            logging.info(f"请求创建分支: {clean_name} (基于 {start_point})");
-            # Use _run_command_list_sequentially which handles busy state and refresh
-            self._run_command_list_sequentially([f"git branch {shlex.quote(clean_name)} {shlex.quote(start_point)}"])
-         elif ok and not branch_name:
-            self._show_warning("操作失败", "分支名称不能为空。")
 
 
     def _create_and_checkout_branch_from_dialog(self, suggest_name: str, start_point: str):
-         """显示对话框获取新名称并执行 git checkout -b <newname> <startpoint>"""
          if not self._check_repo_and_warn(): return
          branch_name, ok = QInputDialog.getText(self, "创建并切换本地分支", f"输入新本地分支的名称 (基于 '{start_point}'):", QLineEdit.EchoMode.Normal, suggest_name)
-         if ok and branch_name:
+         if ok:
             clean_name = branch_name.strip();
-            # Basic validation for branch names
-            if not clean_name or not re.match(r'^(?!\.|.*\.\.|.*@\{)[^\s~^:?*\[\\]+$', clean_name) or clean_name.endswith('.lock') or clean_name.startswith('.') or '..' in clean_name or '//' in clean_name:
-                 self._show_warning("操作失败", f"分支名称 '{clean_name}' 无效。")
+            if not clean_name or re.search(r'[\s\~\^\:\?\*\[\\@\{]', clean_name):
+                 self._show_warning("操作失败", "分支名称无效。\n\n分支名称不能包含空格或特殊字符如 ~^:?*[\\@{。")
                  return
             logging.info(f"请求创建并切换到分支: {clean_name} (基于 {start_point})");
-            # Use _run_command_list_sequentially which handles busy state and refresh
             self._run_command_list_sequentially([f"git checkout -b {shlex.quote(clean_name)} {shlex.quote(start_point)}"])
-         elif ok and not branch_name:
-            self._show_warning("操作失败", "分支名称不能为空。")
+         elif ok:
+            self._show_information("操作取消", "名称不能为空。")
 
 
     @pyqtSlot()
     def _log_selection_changed(self):
-        """处理日志表格选择变化，触发提交详情显示更新"""
-        if not self.log_table_widget or not self.commit_details_textedit or not self.git_handler:
-             if self.commit_details_textedit: self.commit_details_textedit.clear(); self.commit_details_textedit.setPlaceholderText("")
-             return
-
-        if not self._check_repo_and_warn("仓库无效，无法显示提交详情。"):
-             if self.commit_details_textedit: self.commit_details_textedit.clear(); self.commit_details_textedit.setPlaceholderText("仓库无效");
+        if not self.log_table_widget or not self.commit_details_textedit or not self.git_handler or not self._check_repo_and_warn("仓库无效，无法显示提交详情。"):
+             self.commit_details_textedit.clear()
+             self.commit_details_textedit.setPlaceholderText("选中上方提交记录以查看详情...");
              return
 
         selected_items = self.log_table_widget.selectedItems();
         self.commit_details_textedit.clear()
 
-        # Get selected row indices from the selection model
-        selected_rows_indices = self.log_table_widget.selectionModel().selectedRows()
-
-        if not selected_rows_indices:
+        if not selected_items:
              self.commit_details_textedit.setPlaceholderText("选中上方提交记录以查看详情...");
              return
 
-        # We only display details for the *first* selected row
-        first_selected_row_index = selected_rows_indices[0]
-        selected_row = first_selected_row_index.row()
-
-        if selected_row < 0: # Should not happen if selected_rows_indices is not empty, defensive check
+        selected_row = self.log_table_widget.currentRow();
+        if selected_row < 0:
              self.commit_details_textedit.setPlaceholderText("请选择一个提交记录。"); return
 
         hash_item = self.log_table_widget.item(selected_row, LOG_COL_COMMIT);
         if hash_item:
-            # Retrieve the full commit hash stored in UserRole
             commit_hash = hash_item.data(Qt.ItemDataRole.UserRole)
-            # Fallback to displayed short hash if full hash not found (less reliable)
-            if not commit_hash: commit_hash = hash_item.text().strip().split()[0] if hash_item.text() else None
-
+            if not commit_hash: commit_hash = hash_item.text().strip()
 
             if commit_hash:
                 logging.debug(f"Log selection changed, requesting details for commit: {commit_hash}")
-                # Display placeholder while loading
                 self.commit_details_textedit.setPlaceholderText(f"正在加载 Commit '{commit_hash[:7]}...' 的详情...");
-                QApplication.processEvents() # Ensure placeholder updates
-
-                # Execute git show asynchronously to get commit details and diff
-                self.git_handler.execute_command_async(
-                    # --no-ext-diff prevents external diff tools
-                    ["git", "show", "--no-ext-diff", shlex.quote(commit_hash)], # Quote the commit hash
-                    lambda rc, so, se, ch=commit_hash: self._on_commit_details_received(rc, so, se, ch)
-                )
+                QApplication.processEvents()
+                self.git_handler.execute_command_async(["git", "show", shlex.quote(commit_hash)], self._on_commit_details_received)
             else:
                 self.commit_details_textedit.setPlaceholderText("无法获取选中提交的 Hash.");
-                logging.error(f"无法从日志表格项获取有效 Hash (Row: {selected_row}).")
+                logging.error(f"无法从表格项获取有效 Hash (Row: {selected_row}).")
         else:
             self.commit_details_textedit.setPlaceholderText("无法确定选中的提交项.");
             logging.error(f"无法在日志表格中找到行 {selected_row} 的第 {LOG_COL_COMMIT} 列项。")
 
 
-    @pyqtSlot(int, str, str, str)
-    def _on_commit_details_received(self, return_code: int, stdout: str, stderr: str, commit_hash: str):
-        """处理 Git show 命令结果并显示提交详情"""
+    @pyqtSlot(int, str, str)
+    def _on_commit_details_received(self, return_code: int, stdout: str, stderr: str):
         if not self.commit_details_textedit: return
-        self.commit_details_textedit.setPlaceholderText(""); # Clear placeholder
+        self.commit_details_textedit.setPlaceholderText("");
 
         if return_code == 0:
             if stdout.strip():
-                # Use the diff formatter for commit details (includes commit info + diff)
-                self._display_formatted_diff(self.commit_details_textedit, stdout)
+                self.commit_details_textedit.setText(stdout)
             else:
-                 self.commit_details_textedit.setPlainText(f"未获取到提交 '{commit_hash[:7]}' 的详情。")
+                 self.commit_details_textedit.setText("未获取到提交详情。")
         else:
-            error_message = f"❌ 获取提交 '{commit_hash[:7]}' 详情失败:\n{stderr.strip()}"
-            self.commit_details_textedit.setPlainText(error_message)
-            logging.error(f"获取 Commit 详情失败 (RC={return_code}) for {commit_hash}: {stderr.strip()}")
+            error_message = f"❌ 获取提交详情失败:\n{stderr}"
+            self.commit_details_textedit.setText(error_message)
+            logging.error(f"获取 Commit 详情失败: RC={return_code}, Error: {stderr}")
 
-    def _fetch_all(self):
-        """执行 git fetch --all"""
-        if not self._check_repo_and_warn(): return
-        logging.info("请求抓取所有远程 (git fetch --all)")
-        # Use _run_command_list_sequentially which handles busy state and refresh
-        self._run_command_list_sequentially(["git fetch --all"], refresh_on_success=True)
-
-    def _fetch_prune(self):
-        """执行 git fetch --prune"""
-        if not self._check_repo_and_warn(): return
-        logging.info("请求抓取并修剪 (git fetch --prune)")
-        # Use _run_command_list_sequentially which handles busy state and refresh
-        self._run_command_list_sequentially(["git fetch --prune"], refresh_on_success=True)
-
-    def _stash_pop(self):
-        """执行 git stash pop"""
-        if not self._check_repo_and_warn(): return
-        logging.info("请求应用最近的 Stash (git stash pop)")
-        # Use _run_command_list_sequentially which handles busy state and refresh
-        self._run_command_list_sequentially(["git stash pop"])
-
-    def _stash_list(self):
-        """执行 git stash list"""
-        if not self._check_repo_and_warn(): return
-        logging.info("请求显示 Stash 列表 (git stash list)")
-        # Use _run_command_list_sequentially which runs and displays output, but doesn't need model refresh
-        self._run_command_list_sequentially(["git stash list"], refresh_on_success=False)
-
-    def _clean_working_directory_dialog(self):
-        """显示警告对话框并执行 git clean"""
-        if not self._check_repo_and_warn(): return
-        warning_message = ("确定要清理工作区吗？\n\n"
-                           "将执行: git clean -fd\n\n"
-                           "这将 **永久删除** 所有未跟踪的文件和目录！\n"
-                           "（不包括 .gitignore 中忽略的文件）\n\n"
-                           "此操作不可撤销！强烈建议先使用 'git clean -fdn' (模拟运行)。")
-        reply = QMessageBox.critical(self, "⚠️ 危险操作: 清理工作区", warning_message,
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
-                                     QMessageBox.StandardButton.Cancel)
-        if reply == QMessageBox.StandardButton.Yes:
-             # Offer a dry run option first
-             dry_run_reply = QMessageBox.question(self, "执行 Dry Run?", "是否先执行 'git clean -fdn' (模拟运行) 查看将删除哪些文件？",
-                                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes)
-             if dry_run_reply == QMessageBox.StandardButton.Yes:
-                  logging.info("请求模拟清理工作区 (git clean -fdn)")
-                  # Run dry run, no refresh needed
-                  self._run_command_list_sequentially(["git clean -fdn"], refresh_on_success=False)
-             else:
-                  logging.info("请求清理工作区 (git clean -fd)")
-                  # Run actual clean, refresh needed
-                  self._run_command_list_sequentially(["git clean -fd"])
-
-    def _open_git_documentation(self):
-        """在浏览器中打开 Git 文档"""
-        QDesktopServices.openUrl(QUrl("https://git-scm.com/doc"))
-
-    def _open_issue_tracker(self):
-        """在浏览器中打开项目 Issue Tracker"""
-        QDesktopServices.openUrl(QUrl("https://github.com/424635328/Git-Helper/issues"))
 
     def _run_switch_branch(self):
-        """显示对话框选择本地分支并执行 git checkout"""
         if not self._check_repo_and_warn(): return
-        branches = []
-        if self.branch_list_widget:
-            for i in range(self.branch_list_widget.count()):
-                item = self.branch_list_widget.item(i)
-                branch_name = item.text().strip()
-                # Include only local branches that are not the current branch or detached HEAD
-                if not branch_name.startswith(("remotes/", "(")) and not item.font().bold():
-                     branch_name = branch_name.lstrip('* ').strip() # Remove leading '*' if present
-                     if branch_name:
-                         branches.append(branch_name)
-
-        branch_name, ok = QInputDialog.getItem(self,"切换分支","选择或输入要切换到的本地分支名称:", sorted(branches), 0, True)
+        branch_name, ok = QInputDialog.getText(self,"切换分支","输入要切换到的本地分支名称:",QLineEdit.EchoMode.Normal)
         if ok and branch_name:
             clean_name = branch_name.strip()
             if not clean_name:
-                 self._show_information("操作取消", "分支名称不能为空。")
+                 self._show_information("操作取消", "名称不能为空。")
                  return
-            # Prevent switching to remote tracking branches or detached head via this dialog
-            if clean_name.startswith("remotes/") or clean_name.startswith("("):
-                 self._show_warning("操作无效", "请选择一个本地分支进行切换。\n远程跟踪分支请从分支列表右键选择 '基于此创建...'。")
-                 return
-            # Use _run_command_list_sequentially which handles busy state and refresh
             self._run_command_list_sequentially([f"git checkout {shlex.quote(clean_name)}"])
-        elif ok and not branch_name: # User clicked OK but input empty
-             self._show_information("操作取消", "分支名称不能为空。")
+        elif ok and not branch_name: self._show_information("操作取消", "名称不能为空。")
 
 
     def _run_list_remotes(self):
-        """执行 git remote -v"""
         if not self._check_repo_and_warn(): return
-        # Use _run_command_list_sequentially which runs and displays output, but doesn't need model refresh
         self._run_command_list_sequentially(["git remote -v"], refresh_on_success=False)
 
 
     def _open_settings_dialog(self):
-        """显示全局 Git 配置对话框"""
         dialog = SettingsDialog(self)
         current_name = ""
         current_email = ""
-        # Fetch current global config user.name and user.email
         if self.git_handler:
             try:
-                 # Run sync commands as this is a quick config lookup
                  name_result = self.git_handler.execute_command_sync(["git", "config", "--global", "user.name"])
                  email_result = self.git_handler.execute_command_sync(["git", "config", "--global", "user.email"])
-
-                 if name_result and name_result.returncode == 0: current_name = name_result.stdout.strip()
-                 else: logging.warning(f"获取全局 user.name 失败: RC={name_result.returncode if name_result else 'N/A'}, Err={name_result.stderr.strip() if name_result else 'N/A'}")
-
-                 if email_result and email_result.returncode == 0: current_email = email_result.stdout.strip()
-                 else: logging.warning(f"获取全局 user.email 失败: RC={email_result.returncode if email_result else 'N/A'}, Err={email_result.stderr.strip() if email_result else 'N/A'}")
-
-                 # Populate dialog fields
+                 current_name = name_result.stdout.strip() if name_result and name_result.returncode == 0 else ""
+                 current_email = email_result.stdout.strip() if email_result and email_result.returncode == 0 else ""
                  dialog.name_edit.setText(current_name)
                  dialog.email_edit.setText(current_email)
-            except Exception as e: logging.warning(f"获取全局配置时出错: {e}")
+            except Exception as e:
+                 logging.warning(f"Failed to fetch global config: {e}")
 
-        # Show the dialog modally
         if dialog.exec():
             config_data = dialog.get_data()
             commands_to_run = []
@@ -3065,109 +1728,80 @@ class MainWindow(QMainWindow):
             name_val = config_data.get("user.name")
             email_val = config_data.get("user.email")
 
-            # Build commands if values have changed and are not empty
-            if name_val is not None and name_val.strip() and name_val.strip() != current_name:
-                 commands_to_run.append(f"git config --global user.name {shlex.quote(name_val.strip())}")
-            if email_val is not None and email_val.strip() and email_val.strip() != current_email:
-                 # Basic email format warning
-                 if '@' not in email_val.strip() or '.' not in email_val.strip().split('@')[-1]:
-                      self._show_warning("格式警告", f"邮箱 '{email_val.strip()}' 格式似乎不正确，但仍将尝试设置。")
-                 commands_to_run.append(f"git config --global user.email {shlex.quote(email_val.strip())}")
+            if name_val is not None and name_val.strip() != current_name: commands_to_run.append(f"git config --global user.name {shlex.quote(name_val.strip())}")
+            if email_val is not None and email_val.strip() != current_email: commands_to_run.append(f"git config --global user.email {shlex.quote(email_val.strip())}")
 
-            # If there are commands to run, confirm with the user
             if commands_to_run:
                  confirmation_msg = "将执行以下全局 Git 配置命令:\n\n" + "\n".join(commands_to_run) + "\n\n确定吗？"
                  reply = QMessageBox.question(self, "应用全局配置", confirmation_msg, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Yes)
                  if reply == QMessageBox.StandardButton.Yes:
-                     logging.info(f"执行全局配置命令: {commands_to_run}")
+                     logging.info(f"Executing global config commands: {commands_to_run}")
                      if self.git_handler:
-                         # Run the commands sequentially, no refresh needed
                          self._run_command_list_sequentially(commands_to_run, refresh_on_success=False)
                      else:
                          logging.error("GitHandler unavailable for settings.")
-                         QMessageBox.critical(self, "错误", "无法执行配置命令 (Git 处理程序不可用)。")
-                 else: self._show_information("操作取消", "未应用全局配置更改。")
-            else: self._show_information("无更改", "未检测到有效的用户名或邮箱信息变更。")
+                         QMessageBox.critical(self, "错误", "无法执行配置命令。")
+                 else:
+                     self._show_information("操作取消", "未应用全局配置更改。")
+            else:
+                 self._show_information("无更改", "未检测到有效的用户名或邮箱信息变更。")
 
 
     def _show_about_dialog(self):
-        """显示关于对话框"""
         try:
-             # Extract version from window title
-             match = re.search(r'v([\d.]+)', self.windowTitle())
-             version = match.group(1) if match else "N/A"
-        except Exception: version = "N/A"
+             version = self.windowTitle().split('v')[-1].strip()
+        except:
+             version = "N/A"
         about_text = f"""
 <!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><title>简易 Git GUI</title>
-<style>
-    body {{ font-family: sans-serif; padding: 15px; }} h1 {{ color: #333; }}
-    p.version {{ color: #555; font-style: italic; }} h2 {{ color: #444; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-top: 20px; }}
-    ul {{ list-style-type: disc; margin-left: 20px; }} li strong {{ color: #005999; }}
-    div.footer {{ margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; font-size: 0.9em; color: #666; }}
-    a {{ color: #007bff; text-decoration: none; }} a:hover {{ text-decoration: underline; }}
-</style></head><body>
-  <h1>简易 Git GUI</h1> <p class="version">版本: {version}</p>
-  <p>一个用于可视化、学习和执行 Git 命令的简单图形界面工具。</p>
-  <h2>主要功能:</h2>
+<head>
+<title>简易 Git GUI</title>
+</head>
+<body>
+
+  <h1>简易 Git GUI</h1>
+  <p class="version">版本: {version}</p>
+
+  <p>这是一个简单的 Git GUI 工具，用于学习和执行 Git 命令。</p>
+
+  <h2>开发日志:</h2>
   <ul>
-      <li>仓库选择、初始化、克隆</li> <li>文件状态查看 (暂存/未暂存/未跟踪/冲突)</li>
-      <li>文件差异 (Diff) 对比 (暂存区/工作区)</li> <li>提交历史 (Log) 查看与提交详情</li>
-      <li>常用命令按钮 (Add, Commit, Pull, Push, Fetch, Branch, Merge, ...)</li>
-      <li>命令序列构建与编辑</li> <li>快捷键保存与执行</li>
-      <li>分支列表查看与管理 (创建/切换/合并/删除/重命名)</li> <li>Stash 操作 (Save, Pop, List)</li>
-      <li>远程仓库操作 (Fetch, Push, Prune, List, Remote Delete)</li> <li>全局 Git 配置</li>
-      <li>直接命令执行</li><li>简单的加载动画指示器</li><li>上次仓库路径记忆</li>
-  </ul>
-  <h2>开发日志 (近期):</h2>
-  <ul>
-    <li><strong>v1.17</strong> - 实现仓库路径持久化，修复快捷键可能失效问题，改进繁忙状态管理，修复差异对比显示。</li>
-    <li><strong>v1.16</strong> - 修复UI繁忙状态管理逻辑，确保命令执行或刷新后UI恢复正常。修复提交详情显示问题。</li>
-    <li><strong>v1.15</strong> - 修复多个 AttributeError 和 TypeError，修正 UI 繁忙状态管理和刷新逻辑，完善 git init 的 cwd 处理，修复日志和提交详情的数据获取。</li>
-    <li><strong>v1.14</strong> - 修复分支刷新回调安全检查逻辑，优化UI繁忙状态管理和状态栏更新，添加加载动画指示器（需提供动画文件），改进日志解析和显示，优化克隆/初始化流程，增强右键菜单功能。</li>
-    <li><strong>v1.13</strong> - 菜单栏增强 (Clone, Init, Fetch All/Prune, Stash, Clean, Docs), 新增 -s, -x, --quiet 参数按钮, 改进 UI 交互与状态更新, 优化对话框与输入校验。</li>
+    <li><strong>v1.0</strong> - 初始版本 (仓库选择, 状态, Diff, Log, 命令输入)</li>
+    <li><strong>v1.1</strong> - 增加暂存/撤销暂存单个文件</li>
+    <li><strong>v1.2</strong> - 增加创建/切换/删除分支</li>
+    <li><strong>v1.3</strong> - 提交功能</li>
+    <li><strong>v1.4</strong> - 增加 Pull/Push/Fetch 按钮</li>
+    <li><strong>v1.5</strong> - 增加 Git 全局配置对话框</li>
+    <li><strong>v1.6</strong> - 异步执行命令，优化UI响应</li>
+    <li><strong>v1.7</strong> - 增加命令序列构建器和快捷键功能</li>
+    <li><strong>v1.8</strong> - 增加提交详情显示和提交历史记录</li>
+    <li><strong>v1.9</strong> - 增加远程仓库列表功能</li>
+    <li><strong>v1.10</strong> - 增加全局配置保存和加载功能</li>
+    <li><strong>v1.11</strong> - 增加更多命令和参数按钮，优化参数添加提示/校验，增强输入校验/警告</li>
     <li><strong>v1.12</strong> - 增加 rebase 命令构建块</li>
-    <li>(更早版本见代码历史)</li>
+    <li><strong>v1.13</strong> - 修复 _update_ui_enable_state 中的 TypeError；实现参数添加到当前行；状态栏显示远程仓库信息；优化需要参数的命令构建对话框。</li>
   </ul>
+
   <div class="footer">
+    <p>本项目是学习 Qt6 和 Git 命令交互的实践项目</p>
     <p>作者: GitHub @424635328</p>
     <p>项目地址: <a href="https://github.com/424635328/Git-Helper">https://github.com/424635328/Git-Helper</a></p>
-    <p>构建日期: 2025-04-23</p>
+    <p>date: 2025-04-22</p>
   </div>
-</body></html>"""
-        QMessageBox.about(self, f"关于 简易 Git GUI v{version}", about_text)
 
+</body>
+</html>
+"""
+        QMessageBox.about(self, "关于 简易 Git GUI", about_text)
     def closeEvent(self, event):
-        """处理窗口关闭事件，检查是否有正在进行的 Git 操作"""
         logging.info("应用程序关闭请求。")
         try:
-            if self.git_handler and hasattr(self.git_handler, 'get_active_process_count'):
-                 active_count = self.git_handler.get_active_process_count()
+            if self.git_handler and hasattr(self.git_handler, 'active_operations') and self.git_handler.active_operations:
+                 active_count = len(self.git_handler.active_operations)
                  if active_count > 0:
                       logging.warning(f"窗口关闭时仍有 {active_count} 个 Git 操作可能在后台运行。")
-                      reply = QMessageBox.question(self, "后台操作仍在运行",
-                                                   f"有 {active_count} 个 Git 操作似乎仍在后台运行。\n"
-                                                   "立即退出可能会中断它们。\n\n确定要退出吗?",
-                                                   QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
-                                                   QMessageBox.StandardButton.Cancel)
-                      if reply == QMessageBox.StandardButton.Cancel:
-                           event.ignore()
-                           return
-                      else:
-                           # Attempt to terminate processes if user confirms exit
-                           self.git_handler.terminate_all_processes()
-                           logging.info("已请求终止所有活跃 Git 进程。")
-            elif self._is_busy:
-                 # If busy state is true but no active processes found by GitHandler (maybe external cause?)
-                 logging.warning("窗口关闭时 UI 处于繁忙状态，但 GitHandler 未报告活跃进程。")
-
-        except Exception as e:
-            logging.exception("关闭窗口时检查或终止 Git 操作出错。")
+        except Exception as e: logging.exception("关闭窗口时检查 Git 操作出错。")
 
         logging.info("应用程序正在关闭。")
-        # Stop the loading animation if it's running
-        if self.loading_movie and self.loading_movie.isValid():
-            self.loading_movie.stop()
-        self._save_current_repo() # Save current repo path on exit
         event.accept()
