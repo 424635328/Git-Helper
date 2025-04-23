@@ -1,4 +1,5 @@
 # ui/shortcut_manager.py
+# -*- coding: utf-8 -*-
 import logging
 from PyQt6.QtWidgets import QListWidgetItem, QMenu, QMessageBox
 from PyQt6.QtGui import QKeySequence, QShortcut, QAction

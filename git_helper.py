@@ -1,3 +1,6 @@
+# Git Helper Tool
+# 最古老的版本
+
 import os
 import subprocess
 import webbrowser

@@ -1,4 +1,5 @@
 # ui/status_tree_model.py
+# -*- coding: utf-8 -*-
 import logging
 import os
 import re

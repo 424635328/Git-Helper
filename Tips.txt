@@ -1,3 +1,5 @@
+cd GitGuiApp
+
 构建-编译命令：
 python -m PyInstaller --noconsole --onedir main-Gui.py
 python -m PyInstaller --onedir main.py
@@ -8,3 +10,7 @@ python -m PyInstaller --noconsole --onefile GitGuiApp/main.py
 
 压缩命令：
 python -m PyInstaller --noconsole --onefile --exclude-module tkinter GitGuiApp/main.py
+
+构建时加入文件夹
+cd GitGuiApp
+python -m PyInstaller --noconsole --onefile --add-data "cyberpunk.qss:." main.py

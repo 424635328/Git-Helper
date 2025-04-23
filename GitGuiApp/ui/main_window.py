@@ -1,3 +1,5 @@
+# ui/main_window.py
+# -*- coding: utf-8 -*-
 import sys
 import os
 import logging
