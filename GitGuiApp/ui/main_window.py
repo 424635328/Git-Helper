@@ -334,7 +334,7 @@ class MainWindow(QMainWindow):
         self._add_command_button(command_builder_layout_3, "Restore...", "添加 'git restore ' 到序列 (需要输入)", self._add_restore_to_sequence)
         left_layout.addLayout(command_builder_layout_3)
 
-        left_layout.addWidget(QLabel("常用参数/选项 (追加到序列最后一行或新行):"))
+        left_layout.addWidget(QLabel("常用参数/选项 (追加到序列命令后，使用空格隔开):"))
         parameter_buttons_layout_1 = QHBoxLayout()
         self._add_command_button(parameter_buttons_layout_1, "-a", "添加 '-a' 参数到序列 (例如 commit -am)", lambda: self._add_parameter_to_sequence("-a"))
         self._add_command_button(parameter_buttons_layout_1, "-v", "添加 '-v' 参数到序列 (详细输出)", lambda: self._add_parameter_to_sequence("-v"))
