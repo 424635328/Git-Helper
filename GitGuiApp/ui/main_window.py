@@ -45,7 +45,7 @@ class MainWindow(QMainWindow):
     # 主应用窗口，集成了 Git GUI 功能
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Git GUI v1.17")
+        self.setWindowTitle("Git GUI v2.0")
         self.setGeometry(100, 100, 1200, 900)
 
         self.git_handler = GitHandler()
@@ -2823,15 +2823,20 @@ class MainWindow(QMainWindow):
         about_text = f"""
 <!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><title>简易 Git GUI</title>
+<head><meta charset="UTF-8"><title>Git GUI</title>
 <style>
-    body {{ font-family: sans-serif; padding: 15px; }} h1 {{ color: #333; }}
-    p.version {{ color: #555; font-style: italic; }} h2 {{ color: #444; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-top: 20px; }}
-    ul {{ list-style-type: disc; margin-left: 20px; }} li strong {{ color: #005999; }}
-    div.footer {{ margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; font-size: 0.9em; color: #666; }}
-    a {{ color: #007bff; text-decoration: none; }} a:hover {{ text-decoration: underline; }}
+    body {{ font-family: sans-serif; padding: 15px; background-color: #1e1e1e; color: #cccccc; }}
+    h1 {{ color: #ffffff; }}
+    p.version {{ color: #aaaaaa; font-style: italic; }}
+    h2 {{ color: #dddddd; border-bottom: 1px solid #3a3a3a; padding-bottom: 5px; margin-top: 20px; }}
+    ul {{ list-style-type: disc; margin-left: 20px; }}
+    li strong {{ color: #569cd6; }} /* 强调色，亮蓝色 */
+    strong {{ color: #569cd6; }} /* 确保所有 strong 元素都应用此颜色 */
+    div.footer {{ margin-top: 30px; border-top: 1px solid #3a3a3a; padding-top: 10px; font-size: 0.9em; color: #888888; }}
+    a {{ color: #569cd6; text-decoration: none; }} /* 链接颜色与强调色一致 */
+    a:hover {{ text-decoration: underline; }}
 </style></head><body>
-  <h1>简易 Git GUI</h1> <p class="version">版本: {version}</p>
+  <h1>Git GUI</h1> <p class="version">版本: {version}</p>
   <p>一个用于可视化、学习和执行 Git 命令的简单图形界面工具。</p>
   <h2>主要功能:</h2>
   <ul>
@@ -2845,6 +2850,9 @@ class MainWindow(QMainWindow):
   </ul>
   <h2>开发日志 (近期):</h2>
   <ul>
+    <li><strong>v1.20</strong> - 修复分支列表右键菜单显示问题，改进分支列表刷新逻辑，修复分支列表选择变化时的异常。</li>
+    <li><strong>v1.19</strong> - 修复分支切换时的错误，改进日志解析，优化 UI 繁忙状态管理，修复提交详情显示问题。</li> 
+    <li><strong>v1.18</strong> - 修复分支列表刷新逻辑，优化 UI 繁忙状态管理，修复提交详情显示问题。</li>
     <li><strong>v1.17</strong> - 实现仓库路径持久化，修复快捷键可能失效问题，改进繁忙状态管理，修复差异对比显示。</li>
     <li><strong>v1.16</strong> - 修复UI繁忙状态管理逻辑，确保命令执行或刷新后UI恢复正常。修复提交详情显示问题。</li>
     <li><strong>v1.15</strong> - 修复多个 AttributeError 和 TypeError，修正 UI 繁忙状态管理和刷新逻辑，完善 git init 的 cwd 处理，修复日志和提交详情的数据获取。</li>
@@ -2856,7 +2864,8 @@ class MainWindow(QMainWindow):
   <div class="footer">
     <p>作者: GitHub @424635328</p>
     <p>项目地址: <a href="https://github.com/424635328/Git-Helper">https://github.com/424635328/Git-Helper</a></p>
-    <p>构建日期: 2025-04-23</p>
+    <p>构建日期: 2025-04-23
+    </p>
   </div>
 </body></html>"""
         QMessageBox.about(self, f"关于 简易 Git GUI v{version}", about_text)
