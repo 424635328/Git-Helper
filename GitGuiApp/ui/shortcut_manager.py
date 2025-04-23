@@ -163,7 +163,6 @@ class ShortcutManager:
         """删除选中的快捷键"""
         shortcut_data = item.data(Qt.ItemDataRole.UserRole)
         if not shortcut_data: return
-
         name = shortcut_data.get('name', '未知快捷键')
         reply = QMessageBox.question(
             self.main_window, "确认删除", f"确定要删除快捷键 '{name}' 吗？",
