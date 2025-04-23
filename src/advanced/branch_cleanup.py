@@ -16,7 +16,7 @@ def delete_local_branch():
     return_code_list, stdout_list, stderr_list = run_git_command(["git", "branch"])
     if return_code_list != 0:
         print("\n **错误**: 获取本地分支列表失败。")
-        input("按任意键继续...") # Keep input here for pause
+        input("按任意键继续...") # 保持输入在这里以暂停
         return
 
     print("\n 本地分支列表:")
@@ -25,16 +25,16 @@ def delete_local_branch():
     local_branch = input(" 请输入要删除的本地分支名称: ")
     if not local_branch:
         print("\n **错误**: 分支名称不能为空！")
-        input("按任意键继续...") # Keep input here for pause
+        input("按任意键继续...") # 保持输入在这里以暂停
         return
 
-    # Simple check if branch is in the list (not precise, just checks string inclusion)
+    # 简单检查分支是否在列表中（不精确，只检查字符串包含）
     if local_branch.strip() not in [b.strip() for b in stdout_list.splitlines()]:
          print(f"\n **警告**: 分支 '{local_branch}' 似乎不在本地分支列表中。请仔细检查名称。")
          confirm_exist = input(" 继续删除操作吗？ (yes/no): ")
          if confirm_exist.lower() != 'yes':
               print("\n操作已取消。")
-              input("按任意键继续...") # Keep input here for pause
+              input("按任意键继续...") # 保持输入在这里以暂停
               return
 
     print(f"\n 正在删除本地分支 '{local_branch}'...")
@@ -43,9 +43,9 @@ def delete_local_branch():
 
     command = ["git", "branch"]
     if force_delete.lower() == 'yes':
-        command.append("-D") # Force delete
+        command.append("-D") # 强制删除
     else:
-        command.append("-d") # Safe delete (only if merged)
+        command.append("-d") # 安全删除（仅在合并后）
     command.append(local_branch)
 
     return_code, stdout, stderr = run_git_command(command)
@@ -77,7 +77,7 @@ def delete_remote_branch():
     remote_branch = input(" 请输入要删除的远程分支名称: ")
     if not remote_branch:
         print("\n **错误**: 分支名称不能为空！")
-        input("按任意键继续...") # Keep input here for pause
+        input("按任意键继续...") # 保持输入在这里以暂停
         return
 
     remote_name = input(" 请输入远程仓库名称 (默认为 origin): ")
@@ -88,7 +88,7 @@ def delete_remote_branch():
     confirmation = input("  输入 'yes' 继续，输入其他任何内容取消操作： ")
     if confirmation.lower() != "yes":
         print("\n操作已取消。")
-        input("按任意键继续...") # Keep input here for pause
+        input("按任意键继续...") # 保持输入在这里以暂停
         return
 
     print(f"\n 正在删除远程分支 '{remote_branch}' 在 '{remote_name}' 上...")

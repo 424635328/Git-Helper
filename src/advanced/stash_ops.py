@@ -85,7 +85,7 @@ def manage_stash():
         confirmation = input("  输入 'yes' 继续，输入其他任何内容取消操作： ")
         if confirmation.lower() != "yes":
             print("\n操作已取消。")
-            input("\n按任意键继续...") # Keep input here for pause
+            input("\n按任意键继续...") 
             return
 
         print(f"\n 正在删除储藏 '{stash_ref}'...")

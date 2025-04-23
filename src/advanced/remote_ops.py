@@ -1,15 +1,15 @@
 # src/advanced/remote_ops.py
 from src.utils import clear_screen
 from src.git_utils import run_git_command
-from src.config_manager import config# 导入配置和URL提取工具
-import os # Needed for os.path.join etc. if needed, not strictly for git commands cwd here.
+from src.config_manager import config  # 导入配置和URL提取工具
+import os  # 如果需要 os.path.join 等，则需要此导入，但并非 git 命令工作目录的必需
 
 
 def setup_upstream():
     """设置 Upstream 仓库地址
     命令: git remote add upstream https://github.com/owner/repo.git
     """
-    # clear_screen() # Called from manage_remotes, no need to clear again
+    # clear_screen() # manage_remotes 调用，无需再次清除
     print("\n----------------------------------------------------")
     print(" [高级] -> 设置 Upstream 仓库地址")
     print("----------------------------------------------------")
@@ -26,12 +26,11 @@ def setup_upstream():
     if not upstream_url:
         upstream_url = default_upstream
 
-    # Check if upstream already exists
     rc_check, out_check, err_check = run_git_command(["git", "remote", "-v"])
     if rc_check == 0 and f"upstream\t" in out_check:
         print("\n **错误**: 远程仓库 'upstream' 已存在。")
         print("  如果需要更改地址，请先使用 'git remote remove upstream' 删除后再添加 (使用远程仓库管理菜单的删除选项)。")
-        # input("按任意键继续...") # Let manage_remotes handle the input
+        input("按任意键继续...") 
         return
 
 
@@ -61,7 +60,7 @@ def manage_remotes():
     print(" [2]  添加新的远程仓库  (git remote add)")
     print(" [3]  删除指定的远程仓库 (git remote remove)")
     print(" [4]  重命名指定的远程仓库 (git remote rename)")
-    print(" [5]  设置 upstream 仓库 (方便同步)") # Direct call to setup_upstream
+    print(" [5]  设置 upstream 仓库 (方便同步)")  # 直接调用 setup_upstream 函数
     print("\n [b]  返回上一级菜单")
     print("\n")
 
@@ -123,8 +122,8 @@ def manage_remotes():
                     else:
                          print(f"\n 远程仓库 '{old_name}' 已成功重命名为 '{new_name}'。")
         elif remote_choice == '5':
-            setup_upstream() # Call the internal function
+            setup_upstream() 
         else:
             print("\n **错误**: 无效的选择！")
 
-        input("\n按任意键继续...") # Pause after each operation within the remote management menu
+        input("\n按任意键继续...") # 在远程管理菜单的每次操作后暂停

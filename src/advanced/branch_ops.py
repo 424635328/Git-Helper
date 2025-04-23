@@ -21,7 +21,7 @@ def merge_branch():
     branch_to_merge = input(" 请输入要合并到当前分支的来源分支名称: ")
     if not branch_to_merge:
         print("\n **错误**: 来源分支名称不能为空！ 操作已取消。")
-        input("按任意键继续...") # Keep input here for pause
+        input("按任意键继续...") # 保持输入在这里以暂停
         return
 
     print(f"\n 正在将分支 '{branch_to_merge}' 合并到当前分支 '{current_branch}'...")
@@ -63,14 +63,14 @@ def rebase_branch():
     onto_branch = input(" 请输入要将当前分支变基到哪个分支之上 (例如: main): ")
     if not onto_branch:
         print("\n **错误**: 目标分支名称不能为空！ 操作已取消。")
-        input("按任意键继续...") # Keep input here for pause
+        input("按任意键继续...") # 保持输入在这里以暂停
         return
 
     print(f"\n **再次警告：** 您确定要将当前分支 '{current_branch}' 变基到 '{onto_branch}' 之上吗？")
     confirmation = input("  输入 'yes' 继续，输入其他任何内容取消操作： ")
     if confirmation.lower() != "yes":
         print("\n操作已取消。")
-        input("\n按任意键继续...") # Keep input here for pause
+        input("\n按任意键继续...") # 保持输入在这里以暂停
         return
 
     print(f"\n 正在将分支 '{current_branch}' 变基到 '{onto_branch}' 之上...")

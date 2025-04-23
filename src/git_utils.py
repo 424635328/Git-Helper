@@ -1,7 +1,7 @@
 # src/git_utils.py
 import subprocess
 import sys
-import os # Added for cwd default? No, cwd is passed explicitly.
+import os # Added for cwd default? No, cwd is passed explicitly. # 为 cwd 的默认值添加？不，cwd 是显式传递的。
 
 def run_git_command(command_list, cwd=None):
     """

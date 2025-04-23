@@ -18,7 +18,7 @@ def cherry_pick_commit():
     commit_hash = input(" 请输入要拣选的提交哈希: ")
     if not commit_hash:
         print("\n **错误**: 提交哈希不能为空！ 操作已取消。")
-        input("按任意键继续...") # Keep input here for pause
+        input("按任意键继续...") # 保持输入在这里以暂停
         return
 
     print(f"\n 正在将提交 '{commit_hash}' 拣选到当前分支...")

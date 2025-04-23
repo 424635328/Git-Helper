@@ -5,7 +5,6 @@ import os
 from src.config_manager import config, load_config_from_git
 from src.utils import clear_screen
 
-# ... (其他导入保持不变) ...
 from src.basic_operations import (
     show_status, show_log, show_diff, add_changes, commit_changes,
 )

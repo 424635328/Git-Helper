@@ -1,6 +1,6 @@
 # src/advanced/driver.py
 from src.utils import clear_screen
-# Import functions from the specific advanced operation modules
+# 从特定高级操作模块导入函数
 from .branch_ops import merge_branch, rebase_branch
 from .stash_ops import manage_stash
 from .cherry_pick_ops import cherry_pick_commit
@@ -28,9 +28,9 @@ def advanced_menu():
     print(" [17] 删除远程分支        (git push --delete)")
     print(" [18] 创建 Pull Request    (生成 URL 手动创建)")
     print(" [19] 清理 Commits (极其危险!)  (git reset --hard)")
-    print("\n [0]  返回主菜单") # Option to return to main menu
+    print("\n [0]  返回主菜单") # 返回主菜单的选项
     while True:
-        # Only allow choices from 10-19 and 0
+        # 只允许选择 10-19 和 0
         choice = input(" 请选择 (0, 10-19): ")
         if choice == "0" or (choice.isdigit() and 10 <= int(choice) <= 19):
             return choice
@@ -44,7 +44,7 @@ def run_advanced_menu():
         choice = advanced_menu()
 
         if choice == "0":
-            # User wants to return to main menu
+            # 用户想返回主菜单
             return
         elif choice == "10":
             merge_branch()
@@ -66,4 +66,4 @@ def run_advanced_menu():
             create_pull_request()
         elif choice == "19":
             clean_commits()
-        # The 'else' case for invalid choice is handled by the advanced_menu() loop itself
+        # 无效选择的 'else' 情况由 advanced_menu() 循环本身处理

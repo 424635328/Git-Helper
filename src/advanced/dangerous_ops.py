@@ -39,18 +39,18 @@ def clean_commits():
     )
     if not num_commits_input:
         print("\n **错误**: 必须输入要丢弃的 commits 数量！ 操作已取消。")
-        input("\n按任意键继续...") # Keep input here for pause
+        input("\n按任意键继续...") # 保持输入在这里以暂停
         return
 
     try:
         num_commits = int(num_commits_input)
         if num_commits < 0:
             print("\n **错误**: commit 数量必须是非负整数！ 操作已取消。")
-            input("\n按任意键继续...") # Keep input here for pause
+            input("\n按任意键继续...") # 保持输入在这里以暂停
             return
     except ValueError:
         print("\n **错误**: 输入的不是有效的整数！ 操作已取消。")
-        input("\n按任意键继续...") # Keep input here for pause
+        input("\n按任意键继续...") # 保持输入在这里以暂停
         return
 
     print(
@@ -66,7 +66,7 @@ def clean_commits():
     confirmation = input("  输入 'yes' 并回车以确认执行此危险操作： ")
     if confirmation.lower() != "yes":
         print("\n操作已取消。")
-        input("\n按任意键继续...") # Keep input here for pause
+        input("\n按任意键继续...") # 保持输入在这里以暂停
         return
 
     reset_command_list = ["git", "reset", "--hard", f"HEAD~{num_commits}"]

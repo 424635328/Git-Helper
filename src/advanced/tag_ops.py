@@ -56,14 +56,14 @@ def manage_tags():
         tag_name = input(" 请输入要删除的本地标签名称: ")
         if not tag_name:
             print("\n **错误**: 标签名称不能为空！ 操作已取消。")
-            input("按任意键继续...") # Keep input here for pause
+            input("按任意键继续...") 
             return
 
         print(f"\n **警告：** 你确定要删除本地标签 '{tag_name}' 吗？")
         confirmation = input("  输入 'yes' 继续，输入其他任何内容取消操作： ")
         if confirmation.lower() != "yes":
             print("\n操作已取消。")
-            input("\n按任意键继续...") # Keep input here for pause
+            input("\n按任意键继续...") 
             return
 
         print(f"\n 正在删除本地标签 '{tag_name}'...")
@@ -87,7 +87,7 @@ def manage_tags():
         tag_name = input(" 请输入要删除的远程标签名称: ")
         if not tag_name:
             print("\n **错误**: 标签名称不能为空！ 操作已取消。")
-            input("按任意键继续...") # Keep input here for pause
+            input("按任意键继续...")
             return
 
         remote_name = input(" 请输入远程仓库名称 (默认为 origin): ")
@@ -98,7 +98,7 @@ def manage_tags():
         confirmation = input("  输入 'yes' 继续，输入其他任何内容取消操作： ")
         if confirmation.lower() != "yes":
             print("\n操作已取消。")
-            input("\n按任意键继续...") # Keep input here for pause
+            input("\n按任意键继续...") 
             return
 
         print(f"\n 正在删除远程仓库 '{remote_name}' 上的标签 '{tag_name}'...")
