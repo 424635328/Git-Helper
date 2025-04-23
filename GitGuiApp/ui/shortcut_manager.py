@@ -194,14 +194,10 @@ class ShortcutManager:
 
     def set_shortcuts_enabled(self, enabled: bool):
         """启用或禁用所有已注册的 QShortcut 对象"""
-        # ShortcutManager 的 enabled 状态应该同时取决于仓库有效性和 UI 繁忙状态
-        # 此方法由 MainWindow 调用，enabled 参数应反映 (is_repo_valid AND not _is_busy) 的状态
         logging.debug(f"ShortcutManager: Setting QShortcut enabled state to: {enabled}")
-        for name, shortcut_obj in list(self.shortcuts_map.items()): # Use list to avoid modifying during iteration
+        for name, shortcut_obj in list(self.shortcuts_map.items()): 
             try:
-                # Add an additional check if the shortcut key is 'None' or empty,
-                # although load_and_register_shortcuts already handles this
-                if shortcut_obj: # Check if the object is still valid
+                if shortcut_obj: 
                      shortcut_obj.setEnabled(enabled)
             except Exception as e:
                 logging.warning(f"设置快捷键 '{name}' QShortcut 状态时出错: {e}")
