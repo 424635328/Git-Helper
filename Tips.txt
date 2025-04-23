@@ -11,6 +11,7 @@ python -m PyInstaller --noconsole --onefile GitGuiApp/main.py
 压缩命令：
 python -m PyInstaller --noconsole --onefile --exclude-module tkinter GitGuiApp/main.py
 
-构建时加入文件夹
+构建时加入资源文件：
+DBS在c盘C:\Users\YourUser\AppData\Roaming\GitGuiApp
 cd GitGuiApp
  python -m PyInstaller -p . --hidden-import core.db_handler --noconsole --onefile --add-data "style.qss:." main.py
