@@ -13,4 +13,4 @@ python -m PyInstaller --noconsole --onefile --exclude-module tkinter GitGuiApp/m
 
 构建时加入文件夹
 cd GitGuiApp
-python -m PyInstaller --noconsole --onefile --add-data "style.qss:." --add-data "database:." e:/GitHub/Git-Helper/GitGuiApp/main.py
+ python -m PyInstaller -p . --hidden-import core.db_handler --noconsole --onefile --add-data "style.qss:." main.py

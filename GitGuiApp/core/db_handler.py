@@ -3,107 +3,54 @@
 import sqlite3
 import os
 import logging
-import sys # 导入 sys 模块
-from typing import Union # 导入 Union
+import sys
+import appdirs # 导入 appdirs 库
+from typing import Union
 
 # 如果主应用程序未配置日志，则配置日志
 # logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # 定义数据库文件所在的目录名和文件名
+# 这些是相对于应用程序数据目录的名称，而不是项目源目录
 DB_DIR_NAME = "database"
 DB_FILENAME = "shortcuts.db"
+
+# 定义应用程序名称，用于确定用户数据目录
+APP_NAME = "GitGuiApp" # 请根据你的应用程序名称修改
 
 class DatabaseHandler:
     """处理快捷键组合的数据库操作"""
 
-    def __init__(self): # 移除 db_path 参数，因为我们会在内部计算路径
+    def __init__(self):
         """
         初始化数据库处理器，确定数据库文件的实际路径。
-        在 PyInstaller --onefile 模式下，路径会在临时目录中。
+        数据库文件将存储在用户应用程序数据目录中以保证持久化。
         """
-        # 确定应用程序的根目录
-        # getattr(sys, 'frozen', False) 检查是否运行在 PyInstaller/cx_Freeze 等冻结环境中
-        # hasattr(sys, '_MEIPASS') 检查是否是 PyInstaller 的 --onefile 模式
-        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-            # 运行在 PyInstaller --onefile 模式下
-            # 数据文件被提取到 sys._MEIPASS
-            # --add-data "database:." 意味着 'database' 目录在 _MEIPASS 的根目录下
-            base_path = sys._MEIPASS
-            logging.info(f"Running in PyInstaller bundle. Base path: {base_path}")
-        else:
-            # 作为标准 Python 脚本运行
-            # 数据库目录相对于脚本文件本身
-            # os.path.dirname(__file__) 获取当前脚本的目录
-            # os.path.abspath() 确保获取绝对路径，避免相对路径问题
-            base_path = os.path.dirname(os.path.abspath(__file__))
-            # 如果脚本位于某个子目录 (e.g., core/), 需要找到项目的根目录
-            # 这里的假设是 database 目录和 core/ 目录在同一个父目录
-            # 实际应用中，你可能需要根据你的项目结构调整 base_path 的确定方式
-            # 例如，向上查找一个特定的标记文件 (.git, requirements.txt 等)
-            # 对于大多数情况，假设 database 目录在与主脚本 (main.py) 同一层级是合理的，
-            # 但如果 db_handler.py 在 core/ 目录下，而 database 在项目根目录，
-            # 那么 base_path 可能需要调整。
-            # 假设你的项目结构是这样的：
-            # YourApp/
-            # ├── main.py
-            # ├── core/
-            # │   └── db_handler.py
-            # ├── database/
-            # │   └── shortcuts.db
-            # 那么当运行 db_handler.py 时，__file__ 是 YourApp/core/db_handler.py
-            # os.path.dirname(__file__) 是 YourApp/core/
-            # os.path.dirname(os.path.dirname(__file__)) 才是 YourApp/
-            # 我们需要 YourApp/ 作为 base_path
-            try:
-                # 尝试获取项目根目录 (向上两级，如果 db_handler 在 core/ 目录下)
-                # 这是基于你的 GitHub 路径 E:/GitHub/Git-Helper/GitGuiApp/main.py 和 core/db_handler.py 的推测
-                # 如果你的结构不同，请调整这里
-                 project_root = os.path.dirname(os.path.dirname(base_path))
-                 # 检查项目根目录下是否有 database 目录作为 sanity check (可选)
-                 potential_db_dir = os.path.join(project_root, DB_DIR_NAME)
-                 if os.path.exists(potential_db_dir) or not os.path.exists(os.path.join(base_path, DB_DIR_NAME)):
-                     base_path = project_root
-                     logging.info(f"Adjusted base path to project root: {base_path}")
-                 else:
-                      # 如果 core/db_handler.py 运行，且 database 在 core/ 同一级，base_path 需要是 core/ 的父级
-                      # 但如果 database 目录本身就在 core/ 旁边，那么从 core/ 向上两级是对的。
-                      # 这个逻辑有点脆弱，依赖于特定的目录结构。
-                      # 最安全的方式是让外部（如 main.py）在初始化 DatabaseHandler 时提供一个 base_path，
-                      # 或者在 DatabaseHandler 内部通过更可靠的方式确定项目根目录。
-                      # 鉴于你的 PyInstaller command 指向 E:/GitHub/Git-Helper/GitGuiApp/main.py
-                      # 并且 --add-data "database:." 意味着 database 应该在 main.py 同一级
-                      # 那么当运行脚本时，我们期望 database 也在 main.py 同一级。
-                      # __file__ 在 db_handler.py 里是 .../GitGuiApp/core/db_handler.py
-                      # dirname(__file__) 是 .../GitGuiApp/core/
-                      # dirname(dirname(__file__)) 是 .../GitGuiApp/
-                      # 所以 base_path 应该是 dirname(dirname(os.path.abspath(__file__)))
-                       base_path = os.path.dirname(os.path.dirname(base_path))
-                       logging.info(f"Calculated base path based on core/ subdir: {base_path}")
-
-            except Exception as e:
-                 logging.warning(f"Could not reliably determine project root, using script dir as base: {base_path}. Error: {e}")
-                 # Fallback to script directory if project root determination fails
-                 pass # Keep base_path as os.path.dirname(os.path.abspath(__file__)) if adjustment fails
-
-            logging.info(f"Running as script. Base path: {base_path}")
-
-
-        # 构建完整的数据库目录和文件路径
-        self.db_dir = os.path.join(base_path, DB_DIR_NAME)
-        self.db_path = os.path.join(self.db_dir, DB_FILENAME)
-
-        logging.info(f"Final determined database path: {self.db_path}")
-
+        # 使用 appdirs 确定用户应用程序数据目录
+        # 这是一个跨平台获取持久化存储路径的标准方法
+        # user_data_dir(appname, appauthor, ...)
+        # appauthor 是可选的，但建议填写
+        # ensure_dir=True 会确保返回的目录是存在的 (appdirs v1.4.4+)
+        # 如果你的 appdirs 版本较低，可能需要手动 os.makedirs
         try:
-            # 确保数据库文件所在的目录存在。
-            # 这对于 PyInstaller --onefile 也很重要，特别是如果数据库文件
-            # 在第一次运行时才创建，或者数据目录本身是通过 --add-data 复制进去的。
+            # 获取用户数据目录，并在其下创建应用名称子目录
+            app_data_base = appdirs.user_data_dir(APP_NAME)
+            # 构建完整的数据库目录和文件路径
+            self.db_dir = os.path.join(app_data_base, DB_DIR_NAME)
+            self.db_path = os.path.join(self.db_dir, DB_FILENAME)
+
+            logging.info(f"Determined persistent database path: {self.db_path}")
+
+            # 确保数据库目录存在。这对于第一次运行应用程序时创建目录非常重要。
             os.makedirs(self.db_dir, exist_ok=True)
-            logging.info(f"数据库目录 '{self.db_dir}' 检查/创建 成功.")
-            self._create_table() # 使用确定的 self.db_path 进行表创建
-        except OSError as e:
-            logging.error(f"创建数据库目录失败 '{self.db_dir}': {e}")
-            # 设置 db_path 为 None 以指示连接将失败
+            logging.info(f"Database directory '{self.db_dir}' checked/created successfully.")
+
+            # 创建数据库表 (如果不存在)
+            self._create_table()
+
+        except Exception as e: # 捕获 appdirs 可能抛出的异常或 os.makedirs 的 OSError
+            logging.error(f"Failed to initialize database handler: {e}")
+            # 设置 db_path 为 None 以指示后续数据库操作将失败
             self.db_path = None
 
 
@@ -112,8 +59,15 @@ class DatabaseHandler:
         if not self.db_path:
             logging.error("数据库路径未设置或无效，无法获取连接。")
             return None
+        # 检查文件是否存在（可选，但有助于区分目录创建失败和文件不存在）
+        # if not os.path.exists(self.db_path):
+        #     logging.warning(f"Database file not found at {self.db_path}. It will be created on first save/table creation.")
+
         try:
             # 考虑添加连接超时
+            # check_same_thread=False 是必需的，如果从多个线程访问同一个连接
+            # 但对于典型的 GUI 应用，主线程处理所有数据库操作时，保持 True (默认) 更安全。
+            # 如果遇到多线程问题，可以考虑连接池或使用 check_same_thread=False (但要注意并发写入)
             conn = sqlite3.connect(self.db_path, timeout=5) # 5 秒超时
             conn.row_factory = sqlite3.Row # 返回字典形式的行
             return conn
@@ -131,8 +85,11 @@ class DatabaseHandler:
 
     def _create_table(self):
         """创建 shortcuts 表 (如果不存在)"""
+        # 在 __init__ 中调用时，已经确保了 self.db_path 有效
         conn = self._get_connection()
-        if not conn: return
+        if not conn:
+            logging.error("无法获取连接来创建表。")
+            return
         try:
             with conn: # 使用 'with conn' 实现自动提交/回滚
                 conn.execute("""
@@ -146,8 +103,15 @@ class DatabaseHandler:
             logging.info(f"数据库表 'shortcuts' 检查/创建 成功 ({self.db_path}).")
         except sqlite3.Error as e:
             logging.error(f"创建 'shortcuts' 表失败 ({self.db_path}): {e}")
+            # 这里不应该设置 self.db_path = None，因为目录和文件路径本身是有效的，只是创建表失败了
         finally:
             self._close_connection(conn) # 使用辅助函数关闭连接
+
+    # 以下方法 (save_shortcut, load_shortcuts, delete_shortcut, get_shortcut_by_key)
+    # 逻辑与之前相同，它们都依赖于 self._get_connection() 来获取有效的连接，
+    # 而 _get_connection() 现在使用持久化路径 self.db_path。
+    # 因此，这些方法的实现不需要改变。
+    # 只是为了完整性，将它们保留在这里。
 
     def save_shortcut(self, name: str, sequence: str, shortcut_key: str) -> bool:
         """保存或更新快捷键组合"""
@@ -158,39 +122,23 @@ class DatabaseHandler:
             with conn:
                 # 检查名称或快捷键是否已被 *其他* 条目使用
                 # 注意：这个检查在并发写入时可能有竞态条件，但在单用户桌面应用中通常不是问题。
-                cursor_check = conn.execute(
-                    "SELECT id FROM shortcuts WHERE (name = ? OR shortcut_key = ?) AND NOT (name = ? AND shortcut_key = ?)",
-                    (name, shortcut_key, name, shortcut_key)
+                # 如果 shortcut_key 已经存在于另一个名称下，INSERT OR REPLACE ON CONFLICT(name) 不会阻止 Unique 约束错误。
+                # 所以我们在这里再次检查或依赖 IntegrityError 捕获。依赖 IntegrityError 更简洁。
+                # 原来的预检查逻辑有点复杂且不能完全防止竞态条件，我们移除它，依赖 DB 的 UNIQUE 约束。
+
+                 # 首先检查是否是快捷键冲突 (这是一个更强的约束)
+                cursor_key_check = conn.execute(
+                    "SELECT id, name FROM shortcuts WHERE shortcut_key = ? AND name != ?",
+                    (shortcut_key, name)
                 )
-                existing = cursor_check.fetchone()
-                if existing:
-                     # 如果存在冲突，检查是名称冲突还是快捷键冲突
-                     name_conflict_check = conn.execute("SELECT id FROM shortcuts WHERE name = ?", (name,)).fetchone()
-                     key_conflict_check = conn.execute("SELECT id FROM shortcuts WHERE shortcut_key = ?", (shortcut_key,)).fetchone()
+                key_conflict_item = cursor_key_check.fetchone()
+                if key_conflict_item:
+                    logging.warning(f"保存快捷键失败：快捷键 '{shortcut_key}' 已被条目 '{key_conflict_item['name']}' (ID: {key_conflict_item['id']}) 使用。")
+                    return False # 快捷键冲突，且不是当前要更新的条目 (如果name匹配的话)
 
-                     if name_conflict_check and key_conflict_check and name_conflict_check['id'] == key_conflict_check['id']:
-                         # 名称和快捷键都存在，并且是同一个条目，这应该由 ON CONFLICT 处理 (更新)
-                         pass # 继续执行 INSERT OR REPLACE
-
-                     elif name_conflict_check and key_conflict_check and name_conflict_check['id'] != key_conflict_check['id']:
-                          # 名称和快捷键存在，但属于不同的条目
-                          logging.warning(f"保存快捷键失败：名称 '{name}' 被条目 ID {name_conflict_check['id']} 使用，快捷键 '{shortcut_key}' 被条目 ID {key_conflict_check['id']} 使用。")
-                          return False # 同时冲突，且是不同条目
-
-                     elif name_conflict_check:
-                         # 名称冲突，但快捷键不冲突（或快捷键是新的）
-                          # 这种情况 ON CONFLICT (name) DO UPDATE 会处理
-                         pass # 继续执行 INSERT OR REPLACE
-
-                     elif key_conflict_check:
-                          # 快捷键冲突，但名称不冲突
-                          # 这个应该直接返回 False，因为 shortcut_key 有 UNIQUE 约束，INSERT OR REPLACE 依赖 name
-                          logging.warning(f"保存快捷键失败：快捷键 '{shortcut_key}' 已被条目 ID {key_conflict_check['id']} 使用。")
-                          return False # 快捷键冲突
-
-                # 插入或替换：如果名称已存在，则更新该条目；如果名称不存在，则插入新条目。
-                # 注意：如果 shortcut_key 已经存在于另一个名称下，这里的 ON CONFLICT(name) 不会阻止 Unique 约束错误，
-                # 所以上面的预检查是必要的。
+                # 然后尝试插入或替换。如果 name 存在，则更新。如果 name 不存在，则插入。
+                # 如果此时 shortcut_key 还是冲突 (例如并发写入，或者快捷键没变但名称变了导致新的名称冲突)，
+                # 将由 IntegrityError 捕获。
                 conn.execute(
                     """
                     INSERT INTO shortcuts (name, sequence, shortcut_key)
@@ -205,9 +153,8 @@ class DatabaseHandler:
             logging.info(f"快捷键 '{name}' ({shortcut_key}) 已保存。")
             success = True
         except sqlite3.IntegrityError as e:
-            # 捕获 Unique 约束错误，这可能是 shortcut_key 冲突导致的，即使上面做了预检查
-            # 例如，预检查通过了，但在执行 INSERT 之前，另一个进程插入了相同的 shortcut_key
-            logging.warning(f"保存快捷键 '{name}' ({shortcut_key}) 时发生完整性错误（可能是快捷键冲突或并发问题）: {e}")
+            # 如果 UNIQUE 约束失败，最可能是 shortcut_key 冲突
+            logging.warning(f"保存快捷键 '{name}' ({shortcut_key}) 时发生完整性错误（可能是快捷键冲突？）: {e}")
             success = False # 确保返回 False
         except sqlite3.Error as e:
             logging.error(f"保存快捷键 '{name}' 失败: {e}")
@@ -222,7 +169,6 @@ class DatabaseHandler:
         if not conn: return []
         shortcuts = []
         try:
-            # SELECT 通常不需要 'with conn'，但使用它也无妨
             cursor = conn.execute("SELECT name, sequence, shortcut_key FROM shortcuts ORDER BY name")
             shortcuts = [dict(row) for row in cursor.fetchall()]
             logging.info(f"成功加载 {len(shortcuts)} 个快捷键。")
