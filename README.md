@@ -1,4 +1,4 @@
-# 🌟 git-helper: 命令行 Git 助手
+# 🌟 git-helper: DIY你的专属 Git 命令串,一键起飞
 
 ## 参考文档
 
