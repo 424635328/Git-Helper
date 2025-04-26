@@ -14,4 +14,9 @@ python -m PyInstaller --noconsole --onefile --exclude-module tkinter GitGuiApp/m
 构建时加入资源文件：
 DBS在c盘C:\Users\YourUser\AppData\Roaming\GitGuiApp
 cd GitGuiApp
- python -m PyInstaller -p . --hidden-import core.db_handler --noconsole --onefile --add-data "style.qss:." main.py
+python -m PyInstaller -p . --hidden-import core.db_handler --noconsole --onefile --add-data "styles/simple.qss:." main.py
+
+python -m PyInstaller -p . --hidden-import core.db_handler --noconsole --onefile --add-data "styles/simple.qss:." main.py
+
+包含所有qss文件
+python -m PyInstaller -p . --hidden-import core.db_handler --noconsole --onefile --add-data "styles;styles" main.py
