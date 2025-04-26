@@ -1,3 +1,4 @@
+# ui/main_window.py
 import subprocess
 import os
 import sys
@@ -45,7 +46,7 @@ class MainWindow(QMainWindow):
     # 主应用窗口，集成了 Git GUI 功能
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Git GUI v2.0")
+        self.setWindowTitle("QuickGit v2.0")
         self.setGeometry(100, 100, 1200, 900)
 
         self.git_handler = GitHandler()
@@ -2836,7 +2837,7 @@ class MainWindow(QMainWindow):
     a {{ color: #569cd6; text-decoration: none; }} /* 链接颜色与强调色一致 */
     a:hover {{ text-decoration: underline; }}
 </style></head><body>
-  <h1>Git GUI</h1> <p class="version">版本: {version}</p>
+  <h1>QuickGit</h1> <p class="version">版本: {version}</p>
   <p>一个用于可视化、学习和执行 Git 命令的简单图形界面工具。</p>
   <h2>主要功能:</h2>
   <ul>
@@ -2868,7 +2869,7 @@ class MainWindow(QMainWindow):
     </p>
   </div>
 </body></html>"""
-        QMessageBox.about(self, f"关于 简易 Git GUI v{version}", about_text)
+        QMessageBox.about(self, f"关于 QuickGit GUI v{version}", about_text)
 
     # 处理窗口关闭事件
     def closeEvent(self, event):
