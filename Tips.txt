@@ -20,3 +20,7 @@ python -m PyInstaller -p . --hidden-import core.db_handler --noconsole --onefile
 
 包含所有qss文件
 python -m PyInstaller -p . --hidden-import core.db_handler --noconsole --onefile --add-data "styles;styles" main.py
+
+包含所有qss文件和图标
+python -m PyInstaller --name "FlashGit" -p . --hidden-import core.db_handler --noconsole --onefile --icon="icons/app_icon.png" --add-data "styles;styles" --add-data "icons/app_icon.png;icons" main.py
+

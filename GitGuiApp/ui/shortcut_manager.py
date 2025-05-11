@@ -76,8 +76,7 @@ class ShortcutManager:
         shortcuts = self.db_handler.load_shortcuts()
         logging.info(f"从数据库加载了 {len(shortcuts)} 个快捷键数据。")
         # 初始状态取决于主窗口当前的仓库和繁忙状态
-        initial_enabled_state = self.main_window.git_handler.is_valid_repo() and not self.main_window._is_busy
-
+        initial_enabled_state = not self.main_window._is_busy
 
         for i, shortcut_data in enumerate(shortcuts):
             name = shortcut_data['name']

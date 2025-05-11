@@ -1,7 +1,4 @@
-﻿/* === Git GUI v2.0 - 美化样式 (Dark Neon Theme - Enhanced Dynamics) === */
-/* === MODIFIED: Removed all 'transition' properties as they are not supported by QSS === */
-
-QMainWindow, QWidget, QDialog {
+﻿QMainWindow, QWidget, QDialog {
     background-color: #1e1e1e;
     color: #cccccc;
     font-family: "Segoe UI", "Microsoft YaHei", "Arial", sans-serif;

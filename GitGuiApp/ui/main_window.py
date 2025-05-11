@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
     # 主应用窗口，集成了 Git GUI 功能
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("QuickGit v2.0")
+        self.setWindowTitle("FlashGit v3.0")
         self.setGeometry(100, 100, 1200, 900)
 
         self.git_handler = GitHandler()
@@ -175,7 +175,7 @@ class MainWindow(QMainWindow):
         def execute_next(index):
             if index >= len(command_strings):
                 logging.debug("命令序列执行完毕。")
-                self._append_output("\n✅ --- 所有命令执行完毕 ---", QColor("green"))
+                self._append_output("\n✅ --- 所有命令执行完毕 ---", QColor("darkCyan"))
                 self._clear_sequence()
                 self._set_ui_busy(False)
 
@@ -213,7 +213,7 @@ class MainWindow(QMainWindow):
                  return
 
             display_cmd = ' '.join(shlex.quote(part) for part in command_parts)
-            self._append_output(f"\n$ {display_cmd}", QColor("darkGray"))
+            self._append_output(f"\n$ {display_cmd}", QColor("darkGreen"))
             if self.status_bar: self.status_bar.showMessage(f"正在执行: {display_cmd[:50]}...", 0)
 
             @pyqtSlot(int, str, str)
@@ -225,7 +225,7 @@ class MainWindow(QMainWindow):
                 if stderr: self._append_output(f"stderr:\n{stderr.strip()}")
 
                 if return_code == 0:
-                    self._append_output(f"✅ 成功: '{display_cmd}'", QColor("Green"))
+                    self._append_output(f"✅ 成功: '{display_cmd}'", QColor("darkCyan"))
                     QTimer.singleShot(10, lambda idx=index + 1: execute_next(idx))
                 else:
                     err_msg = f"❌ 失败 (RC: {return_code}) '{display_cmd}'，执行中止。"
@@ -845,7 +845,7 @@ class MainWindow(QMainWindow):
             return
 
         logging.info("正在刷新状态、分支和日志视图...")
-        self._set_ui_busy(True)
+        self._set_ui_busy(False)
         QApplication.processEvents()
 
         self._pending_refreshes = 3
@@ -1235,7 +1235,7 @@ class MainWindow(QMainWindow):
                  self._update_repo_status()
 
                  self._append_output(f"\n$ {' '.join(shlex.quote(p) for p in command)}", QColor("darkGray"))
-                 self._set_ui_busy(True)
+                 self._set_ui_busy(False)
                  try:
                       if clone_parent_dir and not os.path.exists(clone_parent_dir):
                            os.makedirs(clone_parent_dir, exist_ok=True)
@@ -2282,13 +2282,13 @@ class MainWindow(QMainWindow):
         cursor = target_edit.textCursor()
 
         default_format = target_edit.currentCharFormat()
-        mono_font = QFont("Courier New", default_format.font().pointSize())
+        mono_font = QFont("Courier New", default_format.font().pointSize()+1)
         default_format.setFont(mono_font)
 
         add_format = QTextCharFormat(default_format); add_format.setForeground(QColor("darkGreen")); add_format.setFontWeight(QFont.Weight.Bold)
         del_format = QTextCharFormat(default_format); del_format.setForeground(QColor("red"))
-        header_format = QTextCharFormat(default_format); header_format.setForeground(QColor("darkBlue"))
-        hunk_header_format = QTextCharFormat(default_format); hunk_header_format.setForeground(QColor("darkCyan"))
+        header_format = QTextCharFormat(default_format); header_format.setForeground(QColor("darkCyan")); header_format.setFontWeight(QFont.Weight.Bold)
+        hunk_header_format = QTextCharFormat(default_format); hunk_header_format.setForeground(QColor("darkCyan")); hunk_header_format.setFontWeight(QFont.Weight.Bold); hunk_header_format.setFontItalic(True)
         conflict_format = QTextCharFormat(default_format); conflict_format.setForeground(QColor("orange")); conflict_format.setBackground(QColor("#404000")); conflict_format.setFontWeight(QFont.Weight.Bold)
 
         target_edit.setCurrentCharFormat(default_format)
@@ -2837,7 +2837,7 @@ class MainWindow(QMainWindow):
     a {{ color: #569cd6; text-decoration: none; }} /* 链接颜色与强调色一致 */
     a:hover {{ text-decoration: underline; }}
 </style></head><body>
-  <h1>QuickGit</h1> <p class="version">版本: {version}</p>
+  <h1>FlashGit</h1> <p class="version">版本: {version}</p>
   <p>一个用于可视化、学习和执行 Git 命令的简单图形界面工具。</p>
   <h2>主要功能:</h2>
   <ul>
@@ -2869,7 +2869,7 @@ class MainWindow(QMainWindow):
     </p>
   </div>
 </body></html>"""
-        QMessageBox.about(self, f"关于 QuickGit GUI v{version}", about_text)
+        QMessageBox.about(self, f"关于 FlashGit GUI v{version}", about_text)
 
     # 处理窗口关闭事件
     def closeEvent(self, event):
