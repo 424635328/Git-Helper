@@ -11,6 +11,7 @@
 [![GitHub Forks](https://img.shields.io/github/forks/424635328/Git-Helper?style=social)](https://github.com/424635328/Git-Helper/network/members)
 
 **重要提示: 如果您 Fork 了本仓库，请将 README 中的相关链接替换为您自己的 GitHub 用户名和仓库名称！**
+**可能触发杀毒软件: 程序在运行时创建并执行 .exe 文件，请谨慎运行！**
 
 ## 📚 目录
 

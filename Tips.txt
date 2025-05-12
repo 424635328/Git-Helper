@@ -4,7 +4,7 @@ cd GitGuiApp
 python -m PyInstaller --noconsole --onedir main-Gui.py
 python -m PyInstaller --onedir main.py
 
-python -m PyInstaller --onefile main.py
+python -m PyInstaller --name EntranceRunner --onefile Entrance.py
 python -m PyInstaller --noconsole --onefile main-Gui.py
 python -m PyInstaller --noconsole --onefile GitGuiApp/main.py
 
@@ -24,3 +24,6 @@ python -m PyInstaller -p . --hidden-import core.db_handler --noconsole --onefile
 包含所有qss文件和图标
 python -m PyInstaller --name "FlashGit" -p . --hidden-import core.db_handler --noconsole --onefile --icon="icons/app_icon.png" --add-data "styles;styles" --add-data "icons/app_icon.png;icons" main.py
 
+Pyinstaller --windowed --onefile --name FlashGit --add-data "EntranceRunner.exe;." --add-data "FlashGit.exe;." main.py
+
+pyinstaller --windowed --onefile --name FlashGit --icon="GitGuiApp/icons/app_icon.ico" --add-data "EntranceRunner.exe;." --add-data "FlashGit.exe;." --add-data "GitGuiApp/icons/app_icon.ico;GitGuiApp/icons" main.py

@@ -1,147 +1,340 @@
+# main.py
+
 import sys
 import os
-
-# Import necessary modules from src
-from src.config_manager import config, load_config_from_git
-from src.utils import clear_screen
-
-from src.basic_operations import (
-    show_status, show_log, show_diff, add_changes, commit_changes,
+import subprocess
+import tempfile
+import shutil
+import atexit
+from PyQt6.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QPushButton, QMessageBox, QLabel, QSizePolicy
 )
-from src.branch_sync import (
-    create_switch_branch, pull_changes, push_branch, sync_fork,
-)
-from src.advanced import driver as advanced_driver
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont, QIcon
+
+# --- 配置 ---
+ENTRANCE_EXE_NAME = 'EntranceRunner.exe' if sys.platform == "win32" else 'EntranceRunner'
+SUBDIR_EXE_NAME = 'FlashGit.exe' if sys.platform == "win32" else 'FlashGit'
+APP_ICON_RELATIVE_PATH = os.path.join('GitGuiApp', 'icons', 'app_icon.ico')
+
+temp_dirs_to_clean = []
+def cleanup_temp_dirs():
+    """程序退出时清理所有创建的临时目录"""
+    print("--- 程序退出，开始清理临时目录 ---")
+    while temp_dirs_to_clean:
+        temp_dir = temp_dirs_to_clean.pop()
+        if os.path.exists(temp_dir) and os.path.isdir(temp_dir):
+            try:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                print(f"已清理临时目录: {temp_dir}")
+            except Exception as e:
+                print(f"警告：清理临时目录 {temp_dir} 时出错: {e}")
+        else:
+             print(f"信息：临时目录不存在或不是目录，无需清理: {temp_dir}")
+    print("--- 临时目录清理完毕 ---")
+atexit.register(cleanup_temp_dirs)
 
 
-def main_menu():
-    """显示主菜单并获取用户选择"""
-    clear_screen()
-    print("=====================================================")
+class ScriptRunnerWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+        print("ScriptRunnerWindow __init__ called.")
+        self.initUI()
+        # 应用赛博朋克样式
+        self.applyCyberpunkStyles()
 
-    # --- 根据配置显示标题 ---
-    repo_type = config.get('repo_type', '未确定')
-    base_repo_display = config.get('base_repo', '未加载')
-    origin_user_display = config.get('fork_username', '未加载') # 现在代表 origin 的 owner
-    origin_repo_display = config.get('fork_repo_name', '未加载') # 现在代表 origin 的 repo name
-    branch_display = config.get('default_branch_name', '未加载')
+    def initUI(self):
+        print("ScriptRunnerWindow initUI called.")
+        # 使用中文标题
+        self.setWindowTitle('应用程序启动器')
+        self.setGeometry(300, 300, 500, 300) # 窗口尺寸
 
-    if repo_type == 'original':
-        print(f" [ 项目贡献助手 - 原始仓库: {base_repo_display} ]")
-        print(f" [ Owner: {origin_user_display} | 默认分支: {branch_display} ]")
-    elif repo_type == 'fork':
-        # 对于 Fork，显示 Base 和 Fork 的信息可能更有用
-        print(f" [ 项目贡献助手 - Base: {base_repo_display} ]")
-        print(f" [ Fork: {origin_user_display}/{origin_repo_display} | 默认分支: {branch_display} ]")
-    else: # 加载失败或未确定
-        print(f" [ 项目贡献助手 - 仓库: {base_repo_display} ]") # 显示检测失败信息
-        print(f" [ 用户: {origin_user_display} | 分支: {branch_display} ]")
+        print(f"尝试设置窗口图标，相对路径: {APP_ICON_RELATIVE_PATH}")
+        icon_path = self._get_resource_path(APP_ICON_RELATIVE_PATH)
+        if os.path.exists(icon_path) and os.path.isfile(icon_path):
+            try:
+                self.setWindowIcon(QIcon(icon_path))
+                print(f"窗口图标已成功设置: {icon_path}")
+            except Exception as e_icon:
+                 print(f"警告: 设置窗口图标时出错: {e_icon} (文件路径: {icon_path})")
+        else:
+            print(f"警告: 找不到窗口图标文件或路径不是文件: {icon_path}")
+        # --------------------
 
-    print("=====================================================")
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(35, 35, 35, 35)
+        main_layout.setSpacing(25)
 
-    # --- 根据配置显示菜单项 ---
-    if not config.get('is_git_repo', False) or repo_type == '未确定':
-        print("\n错误：无法加载仓库信息或当前不在 Git 仓库中。")
-        print("\n --- 其他 ---")
-        print(" [0]  退出")
-        while True:
-            choice = input(" 请选择 (0): ")
-            if choice == "0": return choice
-            else: print("\n **错误**: 无效的选择。")
-    else:
-        # 只有在 Git 仓库中且类型确定时显示完整菜单
-        print("\n 请选择操作:")
-        print("\n --- 高级操作与管理 ---")
-        print(" [10] 进入高级操作菜单")
+        # 使用中文标签
+        title_label = QLabel("选择要启动的程序")
+        title_label.setObjectName("titleLabel") # QSS 使用这个名字
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        main_layout.addWidget(title_label)
 
-        print("\n --- 分支与同步 ---")
-        print(" [6]  创建/切换分支")
-        print(" [7]  拉取远程更改 (建议从 origin)") # 拉取通常从 origin 或 upstream
-        print(" [8]  推送本地分支 (推送到 origin)")
+        # --- 按钮 (使用中文文本) ---
+        btn_entrance = QPushButton(f'控制台程序') # 中文按钮文本
+        btn_entrance.setObjectName("actionButton") # QSS 使用这个名字
+        btn_entrance.setToolTip(f"启动内嵌的 {ENTRANCE_EXE_NAME} (控制台界面)") # 中文提示
+        btn_entrance.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        btn_entrance.clicked.connect(self.run_entrance_app)
+        main_layout.addWidget(btn_entrance)
 
-        # Sync Fork 功能仅对 Fork 类型且成功检测到 Base 仓库时有意义
-        sync_fork_label = "[9]  同步 Fork (从 Upstream)"
-        sync_fork_enabled = False
-        if repo_type == 'fork':
-            # 检查 base_repo 是否检测成功 (不是失败状态)
-            if "检测失败" not in base_repo_display and base_repo_display != '未确定' and base_repo_display != '加载中...':
-                sync_fork_enabled = True
-            else:
-                sync_fork_label += " (需设置 upstream)"
-        else: # original 类型不需要同步
-             sync_fork_label = "[9]  (同步 Fork 不适用于原始仓库)"
+        btn_subdir_main = QPushButton(f'图形界面程序') # 中文按钮文本
+        btn_subdir_main.setObjectName("actionButton") # QSS 使用这个名字
+        btn_subdir_main.setToolTip(f"启动内嵌的 {SUBDIR_EXE_NAME} (图形用户界面)") # 中文提示
+        btn_subdir_main.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        btn_subdir_main.clicked.connect(self.run_subdir_app)
+        main_layout.addWidget(btn_subdir_main)
+        # --------------------
 
-        print(f" {sync_fork_label}")
+        self.setLayout(main_layout)
+        print("ScriptRunnerWindow initUI finished.")
 
+    def applyCyberpunkStyles(self):
+        """应用赛博朋克风格的 QSS 样式"""
+        print("Applying Cyberpunk Styles...")
+        # ... QSS 样式代码保持不变 ...
+        style_sheet = """
+            /* === Main Window === */
+            QWidget {
+                background-color: #0d0d0d;
+                color: #e0e0e0;
+                /* 如果中文字体显示不好，可以换成 'Microsoft YaHei UI', 'SimSun', sans-serif */
+                font-family: 'Microsoft YaHei UI', 'Consolas', 'Lucida Console', 'Courier New', monospace;
+            }
 
-        print("\n --- 基础操作 ---")
-        print(" [1]  查看仓库状态")
-        print(" [2]  查看提交历史")
-        print(" [3]  查看文件差异")
-        print(" [4]  添加修改")
-        print(" [5]  提交修改")
-        print("\n --- 其他 ---")
-        print(" [0]  退出")
+            /* === Title Label === */
+            QLabel#titleLabel {
+                color: #00ffff; /* Neon Cyan */
+                /* 中文可能不需要这么大的字号或间距，可调整 */
+                font-size: 24px;
+                font-weight: bold;
+                qproperty-alignment: AlignCenter;
+                padding-bottom: 30px;
+                border-bottom: 1px solid #333;
+                letter-spacing: 2px; /* 减小字母间距 */
+                /* text-transform: uppercase; */ /* 中文不需要大写转换 */
+            }
 
-        while True:
-            choice = input(" 请选择 (0-10): ").strip()
-            # 检查选择是否有效，并阻止选择禁用的 sync_fork
-            if choice == '9' and not sync_fork_enabled:
-                if repo_type == 'original':
-                    print("\n **提示**: 此功能仅适用于 Fork 仓库。")
-                else: # 是 fork 但未成功配置 upstream
-                    print("\n **错误**: 需要先正确设置 'upstream' 远程仓库才能使用此功能。")
-                    print("         请使用 'git remote add upstream <原始仓库URL>' 添加。")
-                input("按任意键继续...")
-                return None # 返回 None 让主循环重新显示菜单
-            elif choice == "0" or (choice.isdigit() and 1 <= int(choice) <= 10):
-                return choice
-            else:
-                print("\n **错误**: 无效的选择，请重新选择.")
+            /* === Action Buttons === */
+            QPushButton#actionButton {
+                background-color: transparent;
+                color: #ff00ff; /* Neon Magenta */
+                border: 2px solid #ff00ff;
+                padding: 15px 20px;
+                /* 中文字号可调整 */
+                font-size: 16px;
+                font-weight: bold;
+                /* text-transform: uppercase; */ /* 中文不需要 */
+                outline: none;
+                margin-top: 15px;
+                /* letter-spacing: 1px; */ /* 中文可能不需要 */
+                border-radius: 0px;
+            }
 
+            /* Button Hover State */
+            QPushButton#actionButton:hover {
+                background-color: rgba(255, 0, 255, 0.1);
+                color: #ffffff;
+                border: 2px solid #ffffff;
+            }
 
-if __name__ == "__main__":
-    # 使用新的函数从 Git 配置加载
-    load_config_from_git()
+            /* Button Pressed State */
+            QPushButton#actionButton:pressed {
+                background-color: rgba(255, 0, 255, 0.3);
+                color: #0d0d0d;
+                border: 2px solid #ff00ff;
+            }
 
-    # 主循环
-    while True:
-        # 检查是否是 Git 仓库或加载失败
-        if not config.get('is_git_repo', False) or config.get('repo_type') == '未确定':
-             choice = main_menu() # 显示受限菜单
-             if choice == '0':
-                 break
-             else: # 理论上不会有其他选择
-                 continue
+            /* === ToolTips === */
+            QToolTip {
+                background-color: #1a1a1a;
+                color: #39ff14; /* Neon Lime Green */
+                border: 1px solid #39ff14;
+                padding: 6px;
+                opacity: 230;
+                font-size: 13px;
+                border-radius: 0px;
+                /* 确保提示的字体也支持中文 */
+                font-family: 'Microsoft YaHei UI', sans-serif;
+            }
 
-        choice = main_menu() # 显示完整或部分禁用的菜单
+            /* === Message Boxes (保持风格，文本由代码设置) === */
+            QMessageBox {
+                background-color: #111;
+                font-family: 'Microsoft YaHei UI', 'Consolas', monospace;
+            }
+            QMessageBox QLabel { /* The message text */
+                color: #00ffff; /* Neon Cyan text */
+                font-size: 14px;
+                min-width: 300px;
+                padding: 15px;
+            }
+             QMessageBox QPushButton { /* Buttons inside message box */
+                background-color: #222;
+                color: #39ff14; /* Lime Green text */
+                border: 1px solid #39ff14;
+                padding: 8px 18px;
+                border-radius: 0px;
+                font-size: 13px;
+                min-width: 90px;
+                min-height: 30px;
+                font-weight: bold;
+                /* text-transform: uppercase; */ /* 中文不需要 */
+             }
+             QMessageBox QPushButton:hover {
+                background-color: #333;
+                border: 1px solid #90ee90;
+                color: #90ee90;
+             }
+             QMessageBox QPushButton:pressed {
+                 background-color: #111;
+                 color: #39ff14;
+             }
+        """
+        self.setStyleSheet(style_sheet)
+        print("Cyberpunk Styles Applied.")
 
-        if choice is None: # 例如选择了禁用的 sync_fork
-            continue
+    def _get_base_path(self):
+        """获取资源文件的基础路径（打包后是_MEIPASS，否则是脚本目录）"""
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            base = sys._MEIPASS
+            print(f"_get_base_path (frozen): {base}")
+            return base
+        else:
+            base = os.path.dirname(os.path.abspath(__file__))
+            print(f"_get_base_path (script): {base}")
+            return base
 
-        if choice == "0":
-            clear_screen()
-            print("\n 感谢使用！")
-            break
+    def _get_resource_path(self, relative_path):
+        """计算资源的绝对路径"""
+        base_path = self._get_base_path()
+        resource_path = os.path.normpath(os.path.join(base_path, relative_path))
+        print(f"Calculated resource path for '{relative_path}': {resource_path}")
+        return resource_path
 
-        # --- 执行操作 --- (确保操作前检查所需配置是否有效)
-        if choice == "1": show_status()
-        elif choice == "2": show_log()
-        elif choice == "3": show_diff()
-        elif choice == "4": add_changes()
-        elif choice == "5": commit_changes()
-        elif choice == "6": create_switch_branch() # 内部可能需要检查 config
-        elif choice == "7": pull_changes()       # 内部可能需要检查 config
-        elif choice == "8": push_branch()        # 内部可能需要检查 config
-        elif choice == "9":
-            # 双重检查，尽管菜单已尝试阻止
-            if config.get('repo_type') == 'fork' and \
-               ("检测失败" not in config.get('base_repo', '检测失败') and \
-                config.get('base_repo') != '未确定'):
-                 sync_fork() # 内部应使用 config['base_repo'] 和 upstream remote
-            else:
-                 # 这个分支理论上不应该被达到，因为菜单逻辑会阻止
-                 print("\n **内部错误**: sync_fork 条件检查失败。")
-                 input("按任意键继续...")
-        elif choice == "10": advanced_driver.run_advanced_menu()
-        # else 分支由 main_menu 处理无效输入
+    def _run_executable(self, exe_name_in_bundle):
+        """ 查找、提取并运行嵌入的可执行文件 """
+        print(f"_run_executable called for bundled exe: {exe_name_in_bundle}")
+        temp_dir = None
+        extracted_exe_path = None # 在 finally 中可能需要访问
+
+        # --- 获取原始工作目录 (关键改动) ---
+        # 这是用户运行主程序 (FlashGit.exe) 时所在的目录，
+        # 我们假设这里就是用户想要操作的 Git 仓库根目录。
+        original_cwd = os.getcwd()
+        print(f"主程序启动时的工作目录 (预期 Git 仓库路径): {original_cwd}")
+        # ---------------------------------
+
+        try:
+            # 获取内嵌可执行文件的路径
+            embedded_exe_path = self._get_resource_path(exe_name_in_bundle)
+            if not os.path.exists(embedded_exe_path) or not os.path.isfile(embedded_exe_path):
+                # 中文错误消息
+                QMessageBox.warning(self, '错误 - 资源未找到',
+                                    f'无法在程序包内找到所需的资源文件或路径不是文件：\n<b>{exe_name_in_bundle}</b>'
+                                    f'<br><br>请检查打包配置 (--add-data "{exe_name_in_bundle};.").')
+                print(f"错误：嵌入的资源未找到或不是文件 - {embedded_exe_path}")
+                return
+
+            # 创建临时目录用于存放提取出的 exe
+            pid = os.getpid()
+            prefix = f"{os.path.splitext(exe_name_in_bundle)[0]}_{pid}_"
+            temp_dir = tempfile.mkdtemp(prefix=prefix)
+            print(f"创建临时目录: {temp_dir}")
+            temp_dirs_to_clean.append(temp_dir) # 注册以便程序退出时清理
+
+            # 构造提取后的 exe 的完整路径
+            extracted_exe_path = os.path.join(temp_dir, exe_name_in_bundle)
+            print(f"准备提取到: {extracted_exe_path}")
+
+            # 将内嵌的 exe 复制到临时目录
+            shutil.copy2(embedded_exe_path, extracted_exe_path)
+            print(f"成功提取 {exe_name_in_bundle} 到临时目录。")
+
+            print(f"尝试启动提取后的程序: {extracted_exe_path}")
+            # --- 修改这里：使用原始工作目录作为子进程的 CWD (关键改动) ---
+            # 这样子进程 (EntranceRunner.exe) 就能在其期望的 Git 仓库目录下运行
+            print(f"将为子进程设置工作目录 (CWD): {original_cwd}")
+            process = subprocess.Popen([extracted_exe_path], cwd=original_cwd)
+            # ----------------------------------------------------
+            print(f"已启动进程 PID: {process.pid} (对应程序: {os.path.basename(extracted_exe_path)})，工作目录设置为 {original_cwd}")
+
+            print("子程序已启动，正在关闭主选择窗口...")
+            self.close() # 启动子程序后关闭启动器窗口
+
+        except PermissionError as pe:
+             # 中文错误消息
+             error_message = f'权限错误：无法提取或运行 <b>{exe_name_in_bundle}</b>。<br>'\
+                             f'可能原因：临时目录写入权限不足 ({temp_dir})，或杀毒软件阻止。<br><br><pre>错误详情: {pe}</pre>'
+             QMessageBox.critical(self, '权限错误', error_message)
+             print(f"权限错误: {pe}")
+             import traceback
+             traceback.print_exc()
+        except FileNotFoundError as fnfe:
+             # 中文错误消息
+             # 确保 extracted_exe_path 在此作用域可见
+             err_path = extracted_exe_path if extracted_exe_path else "未知路径"
+             error_message = f'文件未找到错误：无法启动提取后的文件 <b>{err_path}</b>。<br><br><pre>错误详情: {fnfe}</pre>'
+             QMessageBox.critical(self, '文件未找到错误', error_message)
+             print(f"文件未找到错误: {fnfe}")
+             import traceback
+             traceback.print_exc()
+        except Exception as e:
+            # 中文错误消息
+            error_message = f'处理或启动嵌入程序 <b>{exe_name_in_bundle}</b> 时发生未知错误：<br><br><pre>错误详情: {e}</pre>'
+            QMessageBox.critical(self, '未知错误', error_message)
+            print(f"错误: 处理/启动 {exe_name_in_bundle} 时发生未知错误: {e}")
+            import traceback
+            traceback.print_exc()
+        # finally 块不需要，因为临时目录清理已由 atexit 处理
+
+    def run_entrance_app(self):
+        """启动嵌入的控制台程序 (EntranceRunner.exe)"""
+        print("run_entrance_app called.")
+        self._run_executable(ENTRANCE_EXE_NAME)
+
+    def run_subdir_app(self):
+        """启动嵌入的图形界面程序 (FlashGit.exe)"""
+        print("run_subdir_app called.")
+        self._run_executable(SUBDIR_EXE_NAME)
+
+if __name__ == '__main__':
+    print("--- 程序启动 ---")
+    try:
+        print("初始化应用程序...")
+        app = QApplication(sys.argv)
+        print("应用程序已初始化。")
+
+        print("创建启动窗口...")
+        window = ScriptRunnerWindow()
+        print("启动窗口已创建。")
+
+        print("显示窗口...")
+        window.show()
+        print("窗口已显示。")
+
+        print("进入主事件循环...")
+        exit_code = app.exec()
+        print(f"事件循环结束，退出码: {exit_code}")
+        sys.exit(exit_code)
+
+    except Exception as e:
+        print("\n!!! 程序启动时发生严重错误 !!!")
+        import traceback
+        traceback.print_exc()
+        # 尝试使用 tkinter 显示错误，作为备用方案
+        try:
+            import tkinter as tk
+            from tkinter import messagebox
+            root = tk.Tk()
+            root.withdraw() # 隐藏 tkinter 主窗口
+            messagebox.showerror("启动错误", f"程序启动时发生严重错误:\n\n{e}\n\n请查看控制台获取详细信息。")
+            root.destroy()
+        except Exception:
+             # 如果 tkinter 也失败，则使用 input 阻塞
+             input(f"程序启动时发生严重错误: {e}\n按 Enter 键退出...")
+
+    finally:
+        # 注意: atexit 注册的 cleanup_temp_dirs 会在这里之后被调用
+        print("--- 程序即将退出 (atexit 清理将执行) ---")
