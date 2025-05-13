@@ -24,6 +24,31 @@ python -m PyInstaller -p . --hidden-import core.db_handler --noconsole --onefile
 包含所有qss文件和图标
 python -m PyInstaller --name "FlashGit" -p . --hidden-import core.db_handler --noconsole --onefile --icon="icons/app_icon.png" --add-data "styles;styles" --add-data "icons/app_icon.png;icons" main.py
 
-Pyinstaller --windowed --onefile --name FlashGit --add-data "EntranceRunner.exe;." --add-data "FlashGit.exe;." main.py
 
+Windows_x64_all:
 pyinstaller --windowed --onefile --name FlashGit --icon="GitGuiApp/icons/app_icon.ico" --add-data "EntranceRunner.exe;." --add-data "FlashGit.exe;." --add-data "GitGuiApp/icons/app_icon.ico;GitGuiApp/icons" main.py
+
+Ubuntu:
+1:
+python -m PyInstaller --name "FlashGit" \
+--paths . \
+--hidden-import core.db_handler \
+--noconsole \
+--onefile \
+--icon="icons/app_icon.png" \
+--add-data "styles:styles" \
+--add-data "icons/app_icon.png:icons" \
+main.py
+
+2:
+python -m PyInstaller --name EntranceRunner --onefile Entrance.py
+
+final:
+pyinstaller --windowed --onefile --name "FlashGit" \
+--paths . \
+--icon="GitGuiApp/icons/app_icon.png" \
+--add-data "EntranceRunner:." \
+--add-data "FlashGit:." \
+--add-data "GitGuiApp/icons/app_icon.png:GitGuiApp/icons" \
+main_Linux.py
+
